@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tft-studio"
+version = "1.0.0"
+description = "TFT Post-Match Studio - Esports overlay and match analytics for Teamfight Tactics"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "TFT Studio Team" }
+]
+dependencies = [
+    "fastapi>=0.110.0",
+    "Pillow>=10.0.0",
+    "python-dotenv>=1.0.0",
+    "pywebview>=5.0.0",
+    "requests>=2.31.0",
+    "rich>=13.0.0",
+    "uvicorn>=0.28.0",
+    "websockets>=12.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "coverage>=7.0.0",
+    "pytest>=8.0.0",
+    "pytest-cov>=5.0.0",
+    "responses>=0.25.0",
+    "ruff>=0.5.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "S", "C4", "RUF"]
+ignore = ["S104", "S105", "S106"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "ARG"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "."]
+addopts = "-ra --strict-markers"
+
+[tool.coverage.run]
+source = ["backend", "tft_studio"]
+omit = [
+    "tests/*",
+    "scratch/*",
+]
