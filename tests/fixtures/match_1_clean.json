@@ -1,0 +1,1512 @@
+{
+  "match_id": "VN2_FAKE_MATCH_001",
+  "played_at": "2025-02-20 04:20",
+  "duration": "35m 45s",
+  "queue_name": "Đấu Xếp Hạng (Ranked)",
+  "set_number": 16,
+  "target_player": {
+    "puuid": "fake-puuid-001",
+    "player_name": "EsportsPlayer_1#VN1",
+    "display_name": "EsportsPlayer_1",
+    "placement": 1,
+    "esports_points": 8,
+    "level": 9,
+    "gold_left": 12,
+    "board_value": 67,
+    "damage_to_players": 145,
+    "players_eliminated": 4,
+    "companion_id": 1001,
+    "companion_image": "Tooltip_Ghosty_Spooky_Tier1.png",
+    "traits": [
+      {
+        "raw_id": "TFT16_Noxus",
+        "name": "Noxus",
+        "num_units": 6,
+        "tier_current": 2,
+        "style": 2,
+        "display": "Noxus (6)",
+        "image": "Trait_Icon_16_Noxus.png"
+      },
+      {
+        "raw_id": "TFT16_Conqueror",
+        "name": "Conqueror",
+        "num_units": 4,
+        "tier_current": 2,
+        "style": 2,
+        "display": "Conqueror (4)",
+        "image": ""
+      },
+      {
+        "raw_id": "TFT16_Dominator",
+        "name": "Dominator",
+        "num_units": 2,
+        "tier_current": 1,
+        "style": 1,
+        "display": "Dominator (2)",
+        "image": ""
+      }
+    ],
+    "units": [
+      {
+        "character_id": "TFT16_Draven",
+        "name": "Draven",
+        "tier": 3,
+        "star_str": "★★★",
+        "display": "Draven ★★★",
+        "cost": 3,
+        "unit_value": 27,
+        "image": "TFT16_Draven_splash_centered_0.png",
+        "items": [
+          "Vô Cực Kiếm",
+          "Cung Xanh",
+          "Cuồng Đao Guinsoo"
+        ],
+        "items_detailed": [
+          {
+            "id": "TFT_Item_InfinityEdge",
+            "name": "Vô Cực Kiếm",
+            "image": "TFT_Item_InfinityEdge.png"
+          },
+          {
+            "id": "TFT_Item_LastWhisper",
+            "name": "Cung Xanh",
+            "image": "TFT_Item_LastWhisper.png"
+          },
+          {
+            "id": "TFT_Item_GuinsoosRageblade",
+            "name": "Cuồng Đao Guinsoo",
+            "image": "TFT_Item_GuinsoosRageblade.png"
+          }
+        ],
+        "rarity": 2
+      },
+      {
+        "character_id": "TFT16_Briar",
+        "name": "Briar",
+        "tier": 2,
+        "star_str": "★★",
+        "display": "Briar ★★",
+        "cost": 1,
+        "unit_value": 3,
+        "image": "TFT16_Briar_splash_centered_0.png",
+        "items": [
+          "Huyết Kiếm",
+          "Móng Vuốt Sterak"
+        ],
+        "items_detailed": [
+          {
+            "id": "TFT_Item_Bloodthirster",
+            "name": "Huyết Kiếm",
+            "image": "TFT_Item_Bloodthirster.png"
+          },
+          {
+            "id": "TFT_Item_SteraksGage",
+            "name": "Móng Vuốt Sterak",
+            "image": "TFT_Item_SteraksGage.png"
+          }
+        ],
+        "rarity": 4
+      },
+      {
+        "character_id": "TFT16_Swain",
+        "name": "Swain",
+        "tier": 2,
+        "star_str": "★★",
+        "display": "Swain ★★",
+        "cost": 4,
+        "unit_value": 12,
+        "image": "TFT16_Swain_splash_centered_0.png",
+        "items": [
+          "Giáp Máu Warmog",
+          "Vuốt Rồng"
+        ],
+        "items_detailed": [
+          {
+            "id": "TFT_Item_WarmogsArmor",
+            "name": "Giáp Máu Warmog",
+            "image": "TFT_Item_WarmogsArmor.png"
+          },
+          {
+            "id": "TFT_Item_DragonsClaw",
+            "name": "Vuốt Rồng",
+            "image": "TFT_Item_DragonsClaw.png"
+          }
+        ],
+        "rarity": 3
+      },
+      {
+        "character_id": "TFT16_Ambessa",
+        "name": "Ambessa",
+        "tier": 2,
+        "star_str": "★★",
+        "display": "Ambessa ★★",
+        "cost": 4,
+        "unit_value": 12,
+        "image": "TFT16_Ambessa_splash_centered_0.png",
+        "items": [
+          "Găng Đạo Tặc"
+        ],
+        "items_detailed": [
+          {
+            "id": "TFT_Item_ThiefsGloves",
+            "name": "Găng Đạo Tặc",
+            "image": "TFT_Item_ThiefsGloves.png"
+          }
+        ],
+        "rarity": 3
+      },
+      {
+        "character_id": "TFT16_Vladimir",
+        "name": "Vladimir",
+        "tier": 2,
+        "star_str": "★★",
+        "display": "Vladimir ★★",
+        "cost": 1,
+        "unit_value": 3,
+        "image": "",
+        "items": [],
+        "items_detailed": [],
+        "rarity": 1
+      },
+      {
+        "character_id": "TFT16_Sion",
+        "name": "Sion",
+        "tier": 2,
+        "star_str": "★★",
+        "display": "Sion ★★",
+        "cost": 2,
+        "unit_value": 6,
+        "image": "TFT16_Sion_splash_centered_0.png",
+        "items": [],
+        "items_detailed": [],
+        "rarity": 1
+      },
+      {
+        "character_id": "TFT16_Cassiopeia",
+        "name": "Cassiopeia",
+        "tier": 2,
+        "star_str": "★★",
+        "display": "Cassiopeia ★★",
+        "cost": 1,
+        "unit_value": 3,
+        "image": "",
+        "items": [],
+        "items_detailed": [],
+        "rarity": 0
+      },
+      {
+        "character_id": "TFT16_Morgana",
+        "name": "Morgana",
+        "tier": 1,
+        "star_str": "★",
+        "display": "Morgana ★",
+        "cost": 1,
+        "unit_value": 1,
+        "image": "",
+        "items": [],
+        "items_detailed": [],
+        "rarity": 4
+      }
+    ],
+    "augments": [
+      "Augment Componentbuffgold",
+      "Augment Portableforge",
+      "Augment Prismaticticket"
+    ],
+    "augments_detailed": [
+      {
+        "id": "TFT13_Augment_ComponentBuffGold",
+        "name": "Augment Componentbuffgold",
+        "image": ""
+      },
+      {
+        "id": "TFT13_Augment_PortableForge",
+        "name": "Augment Portableforge",
+        "image": ""
+      },
+      {
+        "id": "TFT13_Augment_PrismaticTicket",
+        "name": "Augment Prismaticticket",
+        "image": ""
+      }
+    ],
+    "is_target": true
+  },
+  "lobby": [
+    {
+      "puuid": "fake-puuid-001",
+      "player_name": "EsportsPlayer_1#VN1",
+      "display_name": "EsportsPlayer_1",
+      "placement": 1,
+      "esports_points": 8,
+      "level": 9,
+      "gold_left": 12,
+      "board_value": 67,
+      "damage_to_players": 145,
+      "players_eliminated": 4,
+      "companion_id": 1001,
+      "companion_image": "Tooltip_Ghosty_Spooky_Tier1.png",
+      "traits": [
+        {
+          "raw_id": "TFT16_Noxus",
+          "name": "Noxus",
+          "num_units": 6,
+          "tier_current": 2,
+          "style": 2,
+          "display": "Noxus (6)",
+          "image": "Trait_Icon_16_Noxus.png"
+        },
+        {
+          "raw_id": "TFT16_Conqueror",
+          "name": "Conqueror",
+          "num_units": 4,
+          "tier_current": 2,
+          "style": 2,
+          "display": "Conqueror (4)",
+          "image": ""
+        },
+        {
+          "raw_id": "TFT16_Dominator",
+          "name": "Dominator",
+          "num_units": 2,
+          "tier_current": 1,
+          "style": 1,
+          "display": "Dominator (2)",
+          "image": ""
+        }
+      ],
+      "units": [
+        {
+          "character_id": "TFT16_Draven",
+          "name": "Draven",
+          "tier": 3,
+          "star_str": "★★★",
+          "display": "Draven ★★★",
+          "cost": 3,
+          "unit_value": 27,
+          "image": "TFT16_Draven_splash_centered_0.png",
+          "items": [
+            "Vô Cực Kiếm",
+            "Cung Xanh",
+            "Cuồng Đao Guinsoo"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_InfinityEdge",
+              "name": "Vô Cực Kiếm",
+              "image": "TFT_Item_InfinityEdge.png"
+            },
+            {
+              "id": "TFT_Item_LastWhisper",
+              "name": "Cung Xanh",
+              "image": "TFT_Item_LastWhisper.png"
+            },
+            {
+              "id": "TFT_Item_GuinsoosRageblade",
+              "name": "Cuồng Đao Guinsoo",
+              "image": "TFT_Item_GuinsoosRageblade.png"
+            }
+          ],
+          "rarity": 2
+        },
+        {
+          "character_id": "TFT16_Briar",
+          "name": "Briar",
+          "tier": 2,
+          "star_str": "★★",
+          "display": "Briar ★★",
+          "cost": 1,
+          "unit_value": 3,
+          "image": "TFT16_Briar_splash_centered_0.png",
+          "items": [
+            "Huyết Kiếm",
+            "Móng Vuốt Sterak"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_Bloodthirster",
+              "name": "Huyết Kiếm",
+              "image": "TFT_Item_Bloodthirster.png"
+            },
+            {
+              "id": "TFT_Item_SteraksGage",
+              "name": "Móng Vuốt Sterak",
+              "image": "TFT_Item_SteraksGage.png"
+            }
+          ],
+          "rarity": 4
+        },
+        {
+          "character_id": "TFT16_Swain",
+          "name": "Swain",
+          "tier": 2,
+          "star_str": "★★",
+          "display": "Swain ★★",
+          "cost": 4,
+          "unit_value": 12,
+          "image": "TFT16_Swain_splash_centered_0.png",
+          "items": [
+            "Giáp Máu Warmog",
+            "Vuốt Rồng"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_WarmogsArmor",
+              "name": "Giáp Máu Warmog",
+              "image": "TFT_Item_WarmogsArmor.png"
+            },
+            {
+              "id": "TFT_Item_DragonsClaw",
+              "name": "Vuốt Rồng",
+              "image": "TFT_Item_DragonsClaw.png"
+            }
+          ],
+          "rarity": 3
+        },
+        {
+          "character_id": "TFT16_Ambessa",
+          "name": "Ambessa",
+          "tier": 2,
+          "star_str": "★★",
+          "display": "Ambessa ★★",
+          "cost": 4,
+          "unit_value": 12,
+          "image": "TFT16_Ambessa_splash_centered_0.png",
+          "items": [
+            "Găng Đạo Tặc"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_ThiefsGloves",
+              "name": "Găng Đạo Tặc",
+              "image": "TFT_Item_ThiefsGloves.png"
+            }
+          ],
+          "rarity": 3
+        },
+        {
+          "character_id": "TFT16_Vladimir",
+          "name": "Vladimir",
+          "tier": 2,
+          "star_str": "★★",
+          "display": "Vladimir ★★",
+          "cost": 1,
+          "unit_value": 3,
+          "image": "",
+          "items": [],
+          "items_detailed": [],
+          "rarity": 1
+        },
+        {
+          "character_id": "TFT16_Sion",
+          "name": "Sion",
+          "tier": 2,
+          "star_str": "★★",
+          "display": "Sion ★★",
+          "cost": 2,
+          "unit_value": 6,
+          "image": "TFT16_Sion_splash_centered_0.png",
+          "items": [],
+          "items_detailed": [],
+          "rarity": 1
+        },
+        {
+          "character_id": "TFT16_Cassiopeia",
+          "name": "Cassiopeia",
+          "tier": 2,
+          "star_str": "★★",
+          "display": "Cassiopeia ★★",
+          "cost": 1,
+          "unit_value": 3,
+          "image": "",
+          "items": [],
+          "items_detailed": [],
+          "rarity": 0
+        },
+        {
+          "character_id": "TFT16_Morgana",
+          "name": "Morgana",
+          "tier": 1,
+          "star_str": "★",
+          "display": "Morgana ★",
+          "cost": 1,
+          "unit_value": 1,
+          "image": "",
+          "items": [],
+          "items_detailed": [],
+          "rarity": 4
+        }
+      ],
+      "augments": [
+        "Augment Componentbuffgold",
+        "Augment Portableforge",
+        "Augment Prismaticticket"
+      ],
+      "augments_detailed": [
+        {
+          "id": "TFT13_Augment_ComponentBuffGold",
+          "name": "Augment Componentbuffgold",
+          "image": ""
+        },
+        {
+          "id": "TFT13_Augment_PortableForge",
+          "name": "Augment Portableforge",
+          "image": ""
+        },
+        {
+          "id": "TFT13_Augment_PrismaticTicket",
+          "name": "Augment Prismaticticket",
+          "image": ""
+        }
+      ],
+      "is_target": true
+    },
+    {
+      "puuid": "fake-puuid-002",
+      "player_name": "EsportsPlayer_2#VN1",
+      "display_name": "EsportsPlayer_2",
+      "placement": 2,
+      "esports_points": 7,
+      "level": 9,
+      "gold_left": 2,
+      "board_value": 19,
+      "damage_to_players": 86,
+      "players_eliminated": 1,
+      "companion_id": 1001,
+      "companion_image": "Tooltip_Ghosty_Spooky_Tier1.png",
+      "traits": [
+        {
+          "raw_id": "TFT16_Noxus",
+          "name": "Noxus",
+          "num_units": 6,
+          "tier_current": 2,
+          "style": 2,
+          "display": "Noxus (6)",
+          "image": "Trait_Icon_16_Noxus.png"
+        },
+        {
+          "raw_id": "TFT16_Conqueror",
+          "name": "Conqueror",
+          "num_units": 4,
+          "tier_current": 2,
+          "style": 2,
+          "display": "Conqueror (4)",
+          "image": ""
+        },
+        {
+          "raw_id": "TFT16_Dominator",
+          "name": "Dominator",
+          "num_units": 2,
+          "tier_current": 1,
+          "style": 1,
+          "display": "Dominator (2)",
+          "image": ""
+        }
+      ],
+      "units": [
+        {
+          "character_id": "TFT16_Draven",
+          "name": "Draven",
+          "tier": 2,
+          "star_str": "★★",
+          "display": "Draven ★★",
+          "cost": 3,
+          "unit_value": 9,
+          "image": "TFT16_Draven_splash_centered_0.png",
+          "items": [
+            "Vô Cực Kiếm"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_InfinityEdge",
+              "name": "Vô Cực Kiếm",
+              "image": "TFT_Item_InfinityEdge.png"
+            }
+          ],
+          "rarity": 2
+        },
+        {
+          "character_id": "TFT16_Briar",
+          "name": "Briar",
+          "tier": 1,
+          "star_str": "★",
+          "display": "Briar ★",
+          "cost": 1,
+          "unit_value": 1,
+          "image": "TFT16_Briar_splash_centered_0.png",
+          "items": [
+            "Huyết Kiếm"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_Bloodthirster",
+              "name": "Huyết Kiếm",
+              "image": "TFT_Item_Bloodthirster.png"
+            }
+          ],
+          "rarity": 4
+        },
+        {
+          "character_id": "TFT16_Swain",
+          "name": "Swain",
+          "tier": 1,
+          "star_str": "★",
+          "display": "Swain ★",
+          "cost": 4,
+          "unit_value": 4,
+          "image": "TFT16_Swain_splash_centered_0.png",
+          "items": [
+            "Giáp Máu Warmog"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_WarmogsArmor",
+              "name": "Giáp Máu Warmog",
+              "image": "TFT_Item_WarmogsArmor.png"
+            }
+          ],
+          "rarity": 3
+        },
+        {
+          "character_id": "TFT16_Ambessa",
+          "name": "Ambessa",
+          "tier": 1,
+          "star_str": "★",
+          "display": "Ambessa ★",
+          "cost": 4,
+          "unit_value": 4,
+          "image": "TFT16_Ambessa_splash_centered_0.png",
+          "items": [
+            "Găng Đạo Tặc"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_ThiefsGloves",
+              "name": "Găng Đạo Tặc",
+              "image": "TFT_Item_ThiefsGloves.png"
+            }
+          ],
+          "rarity": 3
+        },
+        {
+          "character_id": "TFT16_Morgana",
+          "name": "Morgana",
+          "tier": 1,
+          "star_str": "★",
+          "display": "Morgana ★",
+          "cost": 1,
+          "unit_value": 1,
+          "image": "",
+          "items": [],
+          "items_detailed": [],
+          "rarity": 4
+        }
+      ],
+      "augments": [
+        "Augment Componentbuffgold",
+        "Augment Portableforge",
+        "Augment Prismaticticket"
+      ],
+      "augments_detailed": [
+        {
+          "id": "TFT13_Augment_ComponentBuffGold",
+          "name": "Augment Componentbuffgold",
+          "image": ""
+        },
+        {
+          "id": "TFT13_Augment_PortableForge",
+          "name": "Augment Portableforge",
+          "image": ""
+        },
+        {
+          "id": "TFT13_Augment_PrismaticTicket",
+          "name": "Augment Prismaticticket",
+          "image": ""
+        }
+      ],
+      "is_target": false
+    },
+    {
+      "puuid": "fake-puuid-003",
+      "player_name": "EsportsPlayer_3#VN1",
+      "display_name": "EsportsPlayer_3",
+      "placement": 3,
+      "esports_points": 6,
+      "level": 9,
+      "gold_left": 2,
+      "board_value": 19,
+      "damage_to_players": 74,
+      "players_eliminated": 1,
+      "companion_id": 1001,
+      "companion_image": "Tooltip_Ghosty_Spooky_Tier1.png",
+      "traits": [
+        {
+          "raw_id": "TFT16_Noxus",
+          "name": "Noxus",
+          "num_units": 6,
+          "tier_current": 2,
+          "style": 2,
+          "display": "Noxus (6)",
+          "image": "Trait_Icon_16_Noxus.png"
+        }
+      ],
+      "units": [
+        {
+          "character_id": "TFT16_Draven",
+          "name": "Draven",
+          "tier": 2,
+          "star_str": "★★",
+          "display": "Draven ★★",
+          "cost": 3,
+          "unit_value": 9,
+          "image": "TFT16_Draven_splash_centered_0.png",
+          "items": [
+            "Vô Cực Kiếm"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_InfinityEdge",
+              "name": "Vô Cực Kiếm",
+              "image": "TFT_Item_InfinityEdge.png"
+            }
+          ],
+          "rarity": 2
+        },
+        {
+          "character_id": "TFT16_Briar",
+          "name": "Briar",
+          "tier": 1,
+          "star_str": "★",
+          "display": "Briar ★",
+          "cost": 1,
+          "unit_value": 1,
+          "image": "TFT16_Briar_splash_centered_0.png",
+          "items": [
+            "Huyết Kiếm"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_Bloodthirster",
+              "name": "Huyết Kiếm",
+              "image": "TFT_Item_Bloodthirster.png"
+            }
+          ],
+          "rarity": 4
+        },
+        {
+          "character_id": "TFT16_Swain",
+          "name": "Swain",
+          "tier": 1,
+          "star_str": "★",
+          "display": "Swain ★",
+          "cost": 4,
+          "unit_value": 4,
+          "image": "TFT16_Swain_splash_centered_0.png",
+          "items": [
+            "Giáp Máu Warmog"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_WarmogsArmor",
+              "name": "Giáp Máu Warmog",
+              "image": "TFT_Item_WarmogsArmor.png"
+            }
+          ],
+          "rarity": 3
+        },
+        {
+          "character_id": "TFT16_Ambessa",
+          "name": "Ambessa",
+          "tier": 1,
+          "star_str": "★",
+          "display": "Ambessa ★",
+          "cost": 4,
+          "unit_value": 4,
+          "image": "TFT16_Ambessa_splash_centered_0.png",
+          "items": [
+            "Găng Đạo Tặc"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_ThiefsGloves",
+              "name": "Găng Đạo Tặc",
+              "image": "TFT_Item_ThiefsGloves.png"
+            }
+          ],
+          "rarity": 3
+        },
+        {
+          "character_id": "TFT16_Morgana",
+          "name": "Morgana",
+          "tier": 1,
+          "star_str": "★",
+          "display": "Morgana ★",
+          "cost": 1,
+          "unit_value": 1,
+          "image": "",
+          "items": [],
+          "items_detailed": [],
+          "rarity": 4
+        }
+      ],
+      "augments": [
+        "Augment Componentbuffgold",
+        "Augment Portableforge",
+        "Augment Prismaticticket"
+      ],
+      "augments_detailed": [
+        {
+          "id": "TFT13_Augment_ComponentBuffGold",
+          "name": "Augment Componentbuffgold",
+          "image": ""
+        },
+        {
+          "id": "TFT13_Augment_PortableForge",
+          "name": "Augment Portableforge",
+          "image": ""
+        },
+        {
+          "id": "TFT13_Augment_PrismaticTicket",
+          "name": "Augment Prismaticticket",
+          "image": ""
+        }
+      ],
+      "is_target": false
+    },
+    {
+      "puuid": "fake-puuid-004",
+      "player_name": "EsportsPlayer_4#VN1",
+      "display_name": "EsportsPlayer_4",
+      "placement": 4,
+      "esports_points": 5,
+      "level": 9,
+      "gold_left": 2,
+      "board_value": 19,
+      "damage_to_players": 62,
+      "players_eliminated": 0,
+      "companion_id": 1001,
+      "companion_image": "Tooltip_Ghosty_Spooky_Tier1.png",
+      "traits": [
+        {
+          "raw_id": "TFT16_Noxus",
+          "name": "Noxus",
+          "num_units": 6,
+          "tier_current": 2,
+          "style": 2,
+          "display": "Noxus (6)",
+          "image": "Trait_Icon_16_Noxus.png"
+        }
+      ],
+      "units": [
+        {
+          "character_id": "TFT16_Draven",
+          "name": "Draven",
+          "tier": 2,
+          "star_str": "★★",
+          "display": "Draven ★★",
+          "cost": 3,
+          "unit_value": 9,
+          "image": "TFT16_Draven_splash_centered_0.png",
+          "items": [
+            "Vô Cực Kiếm"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_InfinityEdge",
+              "name": "Vô Cực Kiếm",
+              "image": "TFT_Item_InfinityEdge.png"
+            }
+          ],
+          "rarity": 2
+        },
+        {
+          "character_id": "TFT16_Briar",
+          "name": "Briar",
+          "tier": 1,
+          "star_str": "★",
+          "display": "Briar ★",
+          "cost": 1,
+          "unit_value": 1,
+          "image": "TFT16_Briar_splash_centered_0.png",
+          "items": [
+            "Huyết Kiếm"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_Bloodthirster",
+              "name": "Huyết Kiếm",
+              "image": "TFT_Item_Bloodthirster.png"
+            }
+          ],
+          "rarity": 4
+        },
+        {
+          "character_id": "TFT16_Swain",
+          "name": "Swain",
+          "tier": 1,
+          "star_str": "★",
+          "display": "Swain ★",
+          "cost": 4,
+          "unit_value": 4,
+          "image": "TFT16_Swain_splash_centered_0.png",
+          "items": [
+            "Giáp Máu Warmog"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_WarmogsArmor",
+              "name": "Giáp Máu Warmog",
+              "image": "TFT_Item_WarmogsArmor.png"
+            }
+          ],
+          "rarity": 3
+        },
+        {
+          "character_id": "TFT16_Ambessa",
+          "name": "Ambessa",
+          "tier": 1,
+          "star_str": "★",
+          "display": "Ambessa ★",
+          "cost": 4,
+          "unit_value": 4,
+          "image": "TFT16_Ambessa_splash_centered_0.png",
+          "items": [
+            "Găng Đạo Tặc"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_ThiefsGloves",
+              "name": "Găng Đạo Tặc",
+              "image": "TFT_Item_ThiefsGloves.png"
+            }
+          ],
+          "rarity": 3
+        },
+        {
+          "character_id": "TFT16_Morgana",
+          "name": "Morgana",
+          "tier": 1,
+          "star_str": "★",
+          "display": "Morgana ★",
+          "cost": 1,
+          "unit_value": 1,
+          "image": "",
+          "items": [],
+          "items_detailed": [],
+          "rarity": 4
+        }
+      ],
+      "augments": [
+        "Augment Componentbuffgold",
+        "Augment Portableforge",
+        "Augment Prismaticticket"
+      ],
+      "augments_detailed": [
+        {
+          "id": "TFT13_Augment_ComponentBuffGold",
+          "name": "Augment Componentbuffgold",
+          "image": ""
+        },
+        {
+          "id": "TFT13_Augment_PortableForge",
+          "name": "Augment Portableforge",
+          "image": ""
+        },
+        {
+          "id": "TFT13_Augment_PrismaticTicket",
+          "name": "Augment Prismaticticket",
+          "image": ""
+        }
+      ],
+      "is_target": false
+    },
+    {
+      "puuid": "fake-puuid-005",
+      "player_name": "EsportsPlayer_5#VN1",
+      "display_name": "EsportsPlayer_5",
+      "placement": 5,
+      "esports_points": 4,
+      "level": 8,
+      "gold_left": 2,
+      "board_value": 19,
+      "damage_to_players": 50,
+      "players_eliminated": 0,
+      "companion_id": 1001,
+      "companion_image": "Tooltip_Ghosty_Spooky_Tier1.png",
+      "traits": [
+        {
+          "raw_id": "TFT16_Noxus",
+          "name": "Noxus",
+          "num_units": 6,
+          "tier_current": 2,
+          "style": 2,
+          "display": "Noxus (6)",
+          "image": "Trait_Icon_16_Noxus.png"
+        }
+      ],
+      "units": [
+        {
+          "character_id": "TFT16_Draven",
+          "name": "Draven",
+          "tier": 2,
+          "star_str": "★★",
+          "display": "Draven ★★",
+          "cost": 3,
+          "unit_value": 9,
+          "image": "TFT16_Draven_splash_centered_0.png",
+          "items": [
+            "Vô Cực Kiếm"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_InfinityEdge",
+              "name": "Vô Cực Kiếm",
+              "image": "TFT_Item_InfinityEdge.png"
+            }
+          ],
+          "rarity": 2
+        },
+        {
+          "character_id": "TFT16_Briar",
+          "name": "Briar",
+          "tier": 1,
+          "star_str": "★",
+          "display": "Briar ★",
+          "cost": 1,
+          "unit_value": 1,
+          "image": "TFT16_Briar_splash_centered_0.png",
+          "items": [
+            "Huyết Kiếm"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_Bloodthirster",
+              "name": "Huyết Kiếm",
+              "image": "TFT_Item_Bloodthirster.png"
+            }
+          ],
+          "rarity": 4
+        },
+        {
+          "character_id": "TFT16_Swain",
+          "name": "Swain",
+          "tier": 1,
+          "star_str": "★",
+          "display": "Swain ★",
+          "cost": 4,
+          "unit_value": 4,
+          "image": "TFT16_Swain_splash_centered_0.png",
+          "items": [
+            "Giáp Máu Warmog"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_WarmogsArmor",
+              "name": "Giáp Máu Warmog",
+              "image": "TFT_Item_WarmogsArmor.png"
+            }
+          ],
+          "rarity": 3
+        },
+        {
+          "character_id": "TFT16_Ambessa",
+          "name": "Ambessa",
+          "tier": 1,
+          "star_str": "★",
+          "display": "Ambessa ★",
+          "cost": 4,
+          "unit_value": 4,
+          "image": "TFT16_Ambessa_splash_centered_0.png",
+          "items": [
+            "Găng Đạo Tặc"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_ThiefsGloves",
+              "name": "Găng Đạo Tặc",
+              "image": "TFT_Item_ThiefsGloves.png"
+            }
+          ],
+          "rarity": 3
+        },
+        {
+          "character_id": "TFT16_Morgana",
+          "name": "Morgana",
+          "tier": 1,
+          "star_str": "★",
+          "display": "Morgana ★",
+          "cost": 1,
+          "unit_value": 1,
+          "image": "",
+          "items": [],
+          "items_detailed": [],
+          "rarity": 4
+        }
+      ],
+      "augments": [
+        "Augment Componentbuffgold",
+        "Augment Portableforge",
+        "Augment Prismaticticket"
+      ],
+      "augments_detailed": [
+        {
+          "id": "TFT13_Augment_ComponentBuffGold",
+          "name": "Augment Componentbuffgold",
+          "image": ""
+        },
+        {
+          "id": "TFT13_Augment_PortableForge",
+          "name": "Augment Portableforge",
+          "image": ""
+        },
+        {
+          "id": "TFT13_Augment_PrismaticTicket",
+          "name": "Augment Prismaticticket",
+          "image": ""
+        }
+      ],
+      "is_target": false
+    },
+    {
+      "puuid": "fake-puuid-006",
+      "player_name": "EsportsPlayer_6#VN1",
+      "display_name": "EsportsPlayer_6",
+      "placement": 6,
+      "esports_points": 3,
+      "level": 8,
+      "gold_left": 2,
+      "board_value": 19,
+      "damage_to_players": 38,
+      "players_eliminated": 0,
+      "companion_id": 1001,
+      "companion_image": "Tooltip_Ghosty_Spooky_Tier1.png",
+      "traits": [
+        {
+          "raw_id": "TFT16_Noxus",
+          "name": "Noxus",
+          "num_units": 6,
+          "tier_current": 2,
+          "style": 2,
+          "display": "Noxus (6)",
+          "image": "Trait_Icon_16_Noxus.png"
+        }
+      ],
+      "units": [
+        {
+          "character_id": "TFT16_Draven",
+          "name": "Draven",
+          "tier": 2,
+          "star_str": "★★",
+          "display": "Draven ★★",
+          "cost": 3,
+          "unit_value": 9,
+          "image": "TFT16_Draven_splash_centered_0.png",
+          "items": [
+            "Vô Cực Kiếm"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_InfinityEdge",
+              "name": "Vô Cực Kiếm",
+              "image": "TFT_Item_InfinityEdge.png"
+            }
+          ],
+          "rarity": 2
+        },
+        {
+          "character_id": "TFT16_Briar",
+          "name": "Briar",
+          "tier": 1,
+          "star_str": "★",
+          "display": "Briar ★",
+          "cost": 1,
+          "unit_value": 1,
+          "image": "TFT16_Briar_splash_centered_0.png",
+          "items": [
+            "Huyết Kiếm"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_Bloodthirster",
+              "name": "Huyết Kiếm",
+              "image": "TFT_Item_Bloodthirster.png"
+            }
+          ],
+          "rarity": 4
+        },
+        {
+          "character_id": "TFT16_Swain",
+          "name": "Swain",
+          "tier": 1,
+          "star_str": "★",
+          "display": "Swain ★",
+          "cost": 4,
+          "unit_value": 4,
+          "image": "TFT16_Swain_splash_centered_0.png",
+          "items": [
+            "Giáp Máu Warmog"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_WarmogsArmor",
+              "name": "Giáp Máu Warmog",
+              "image": "TFT_Item_WarmogsArmor.png"
+            }
+          ],
+          "rarity": 3
+        },
+        {
+          "character_id": "TFT16_Ambessa",
+          "name": "Ambessa",
+          "tier": 1,
+          "star_str": "★",
+          "display": "Ambessa ★",
+          "cost": 4,
+          "unit_value": 4,
+          "image": "TFT16_Ambessa_splash_centered_0.png",
+          "items": [
+            "Găng Đạo Tặc"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_ThiefsGloves",
+              "name": "Găng Đạo Tặc",
+              "image": "TFT_Item_ThiefsGloves.png"
+            }
+          ],
+          "rarity": 3
+        },
+        {
+          "character_id": "TFT16_Morgana",
+          "name": "Morgana",
+          "tier": 1,
+          "star_str": "★",
+          "display": "Morgana ★",
+          "cost": 1,
+          "unit_value": 1,
+          "image": "",
+          "items": [],
+          "items_detailed": [],
+          "rarity": 4
+        }
+      ],
+      "augments": [
+        "Augment Componentbuffgold",
+        "Augment Portableforge",
+        "Augment Prismaticticket"
+      ],
+      "augments_detailed": [
+        {
+          "id": "TFT13_Augment_ComponentBuffGold",
+          "name": "Augment Componentbuffgold",
+          "image": ""
+        },
+        {
+          "id": "TFT13_Augment_PortableForge",
+          "name": "Augment Portableforge",
+          "image": ""
+        },
+        {
+          "id": "TFT13_Augment_PrismaticTicket",
+          "name": "Augment Prismaticticket",
+          "image": ""
+        }
+      ],
+      "is_target": false
+    },
+    {
+      "puuid": "fake-puuid-007",
+      "player_name": "EsportsPlayer_7#VN1",
+      "display_name": "EsportsPlayer_7",
+      "placement": 7,
+      "esports_points": 2,
+      "level": 8,
+      "gold_left": 2,
+      "board_value": 19,
+      "damage_to_players": 26,
+      "players_eliminated": 0,
+      "companion_id": 1001,
+      "companion_image": "Tooltip_Ghosty_Spooky_Tier1.png",
+      "traits": [
+        {
+          "raw_id": "TFT16_Noxus",
+          "name": "Noxus",
+          "num_units": 6,
+          "tier_current": 2,
+          "style": 2,
+          "display": "Noxus (6)",
+          "image": "Trait_Icon_16_Noxus.png"
+        }
+      ],
+      "units": [
+        {
+          "character_id": "TFT16_Draven",
+          "name": "Draven",
+          "tier": 2,
+          "star_str": "★★",
+          "display": "Draven ★★",
+          "cost": 3,
+          "unit_value": 9,
+          "image": "TFT16_Draven_splash_centered_0.png",
+          "items": [
+            "Vô Cực Kiếm"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_InfinityEdge",
+              "name": "Vô Cực Kiếm",
+              "image": "TFT_Item_InfinityEdge.png"
+            }
+          ],
+          "rarity": 2
+        },
+        {
+          "character_id": "TFT16_Briar",
+          "name": "Briar",
+          "tier": 1,
+          "star_str": "★",
+          "display": "Briar ★",
+          "cost": 1,
+          "unit_value": 1,
+          "image": "TFT16_Briar_splash_centered_0.png",
+          "items": [
+            "Huyết Kiếm"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_Bloodthirster",
+              "name": "Huyết Kiếm",
+              "image": "TFT_Item_Bloodthirster.png"
+            }
+          ],
+          "rarity": 4
+        },
+        {
+          "character_id": "TFT16_Swain",
+          "name": "Swain",
+          "tier": 1,
+          "star_str": "★",
+          "display": "Swain ★",
+          "cost": 4,
+          "unit_value": 4,
+          "image": "TFT16_Swain_splash_centered_0.png",
+          "items": [
+            "Giáp Máu Warmog"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_WarmogsArmor",
+              "name": "Giáp Máu Warmog",
+              "image": "TFT_Item_WarmogsArmor.png"
+            }
+          ],
+          "rarity": 3
+        },
+        {
+          "character_id": "TFT16_Ambessa",
+          "name": "Ambessa",
+          "tier": 1,
+          "star_str": "★",
+          "display": "Ambessa ★",
+          "cost": 4,
+          "unit_value": 4,
+          "image": "TFT16_Ambessa_splash_centered_0.png",
+          "items": [
+            "Găng Đạo Tặc"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_ThiefsGloves",
+              "name": "Găng Đạo Tặc",
+              "image": "TFT_Item_ThiefsGloves.png"
+            }
+          ],
+          "rarity": 3
+        },
+        {
+          "character_id": "TFT16_Morgana",
+          "name": "Morgana",
+          "tier": 1,
+          "star_str": "★",
+          "display": "Morgana ★",
+          "cost": 1,
+          "unit_value": 1,
+          "image": "",
+          "items": [],
+          "items_detailed": [],
+          "rarity": 4
+        }
+      ],
+      "augments": [
+        "Augment Componentbuffgold",
+        "Augment Portableforge",
+        "Augment Prismaticticket"
+      ],
+      "augments_detailed": [
+        {
+          "id": "TFT13_Augment_ComponentBuffGold",
+          "name": "Augment Componentbuffgold",
+          "image": ""
+        },
+        {
+          "id": "TFT13_Augment_PortableForge",
+          "name": "Augment Portableforge",
+          "image": ""
+        },
+        {
+          "id": "TFT13_Augment_PrismaticTicket",
+          "name": "Augment Prismaticticket",
+          "image": ""
+        }
+      ],
+      "is_target": false
+    },
+    {
+      "puuid": "fake-puuid-008",
+      "player_name": "EsportsPlayer_8#VN1",
+      "display_name": "EsportsPlayer_8",
+      "placement": 8,
+      "esports_points": 1,
+      "level": 8,
+      "gold_left": 2,
+      "board_value": 19,
+      "damage_to_players": 14,
+      "players_eliminated": 0,
+      "companion_id": 1001,
+      "companion_image": "Tooltip_Ghosty_Spooky_Tier1.png",
+      "traits": [
+        {
+          "raw_id": "TFT16_Noxus",
+          "name": "Noxus",
+          "num_units": 6,
+          "tier_current": 2,
+          "style": 2,
+          "display": "Noxus (6)",
+          "image": "Trait_Icon_16_Noxus.png"
+        }
+      ],
+      "units": [
+        {
+          "character_id": "TFT16_Draven",
+          "name": "Draven",
+          "tier": 2,
+          "star_str": "★★",
+          "display": "Draven ★★",
+          "cost": 3,
+          "unit_value": 9,
+          "image": "TFT16_Draven_splash_centered_0.png",
+          "items": [
+            "Vô Cực Kiếm"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_InfinityEdge",
+              "name": "Vô Cực Kiếm",
+              "image": "TFT_Item_InfinityEdge.png"
+            }
+          ],
+          "rarity": 2
+        },
+        {
+          "character_id": "TFT16_Briar",
+          "name": "Briar",
+          "tier": 1,
+          "star_str": "★",
+          "display": "Briar ★",
+          "cost": 1,
+          "unit_value": 1,
+          "image": "TFT16_Briar_splash_centered_0.png",
+          "items": [
+            "Huyết Kiếm"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_Bloodthirster",
+              "name": "Huyết Kiếm",
+              "image": "TFT_Item_Bloodthirster.png"
+            }
+          ],
+          "rarity": 4
+        },
+        {
+          "character_id": "TFT16_Swain",
+          "name": "Swain",
+          "tier": 1,
+          "star_str": "★",
+          "display": "Swain ★",
+          "cost": 4,
+          "unit_value": 4,
+          "image": "TFT16_Swain_splash_centered_0.png",
+          "items": [
+            "Giáp Máu Warmog"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_WarmogsArmor",
+              "name": "Giáp Máu Warmog",
+              "image": "TFT_Item_WarmogsArmor.png"
+            }
+          ],
+          "rarity": 3
+        },
+        {
+          "character_id": "TFT16_Ambessa",
+          "name": "Ambessa",
+          "tier": 1,
+          "star_str": "★",
+          "display": "Ambessa ★",
+          "cost": 4,
+          "unit_value": 4,
+          "image": "TFT16_Ambessa_splash_centered_0.png",
+          "items": [
+            "Găng Đạo Tặc"
+          ],
+          "items_detailed": [
+            {
+              "id": "TFT_Item_ThiefsGloves",
+              "name": "Găng Đạo Tặc",
+              "image": "TFT_Item_ThiefsGloves.png"
+            }
+          ],
+          "rarity": 3
+        },
+        {
+          "character_id": "TFT16_Morgana",
+          "name": "Morgana",
+          "tier": 1,
+          "star_str": "★",
+          "display": "Morgana ★",
+          "cost": 1,
+          "unit_value": 1,
+          "image": "",
+          "items": [],
+          "items_detailed": [],
+          "rarity": 4
+        }
+      ],
+      "augments": [
+        "Augment Componentbuffgold",
+        "Augment Portableforge",
+        "Augment Prismaticticket"
+      ],
+      "augments_detailed": [
+        {
+          "id": "TFT13_Augment_ComponentBuffGold",
+          "name": "Augment Componentbuffgold",
+          "image": ""
+        },
+        {
+          "id": "TFT13_Augment_PortableForge",
+          "name": "Augment Portableforge",
+          "image": ""
+        },
+        {
+          "id": "TFT13_Augment_PrismaticTicket",
+          "name": "Augment Prismaticticket",
+          "image": ""
+        }
+      ],
+      "is_target": false
+    }
+  ]
+}

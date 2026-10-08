@@ -1,0 +1,638 @@
+/* ==========================================================================
+   TFT POST-MATCH BROADCAST OVERLAY CSS
+   Phong cách Esports HOSC 2026 - Chuẩn 1920x1080
+   ========================================================================== */
+
+/* Nạp font chuẩn từ thư mục assets/League_Spartan */
+@font-face {
+  font-family: 'League Spartan';
+  src: url('../assets/League_Spartan/static/LeagueSpartan-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'League Spartan';
+  src: url('../assets/League_Spartan/static/LeagueSpartan-Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'League Spartan';
+  src: url('../assets/League_Spartan/static/LeagueSpartan-SemiBold.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'League Spartan';
+  src: url('../assets/League_Spartan/static/LeagueSpartan-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'League Spartan';
+  src: url('../assets/League_Spartan/static/LeagueSpartan-ExtraBold.ttf') format('truetype');
+  font-weight: 800;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'League Spartan';
+  src: url('../assets/League_Spartan/static/LeagueSpartan-Black.ttf') format('truetype');
+  font-weight: 900;
+  font-style: normal;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family: 'League Spartan', -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: #043933;
+  color: #ffffff;
+  -webkit-font-smoothing: antialiased;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.overlay-scaler {
+  width: 1920px;
+  height: 1080px;
+  position: relative;
+  transform-origin: center center;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.overlay-container {
+  width: 1920px;
+  height: 1080px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background-color: #043933;
+  background-image: url('../assets/background.png');
+  background-size: 1920px 1080px;
+  background-repeat: no-repeat;
+  background-position: center;
+  overflow: hidden;
+}
+
+/* --------------------------------------------------------------------------
+   1. TOP HEADER BAR
+   -------------------------------------------------------------------------- */
+.top-header {
+  width: 100%;
+  padding: 10px 40px 0 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sub-bar {
+  width: 100%;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+}
+
+.logos-group {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.brand-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.logo-nec img {
+  height: 36px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.45));
+}
+
+.logo-oeg img {
+  height: 28px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.45));
+}
+
+.logo-vng img {
+  height: 28px;
+  width: auto;
+  object-fit: contain;
+}
+
+.logo-daichien img {
+  height: 28px;
+  width: auto;
+  object-fit: contain;
+}
+
+.game-title {
+  display: none;
+}
+
+/* Main Brushed Gold Title Bar */
+.main-title-bar {
+  width: 100%;
+  height: 82px;
+  background: linear-gradient(90deg, #918556 0%, #baa974 25%, #cebe88 50%, #baa974 75%, #918556 100%);
+  border-radius: 0;
+  clip-path: polygon(0 0, calc(100% - 24px) 0, 100% 24px, 100% 100%, 24px 100%, 0 calc(100% - 24px));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65), inset 0 2px 4px rgba(255, 255, 255, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 45px;
+  border-bottom: 3.5px solid #5a5130;
+  border-top: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.tournament-title,
+.stage-title {
+  font-size: 44px;
+  font-weight: 900;
+  color: #0c1418;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.3);
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------------------------
+   2. MAIN BATTLE ARENA (LEFT & RIGHT PANELS)
+   -------------------------------------------------------------------------- */
+.main-content {
+  flex: 1;
+  display: flex;
+  padding: 24px 40px 28px 40px;
+  gap: 32px;
+  align-items: stretch;
+  height: 940px;
+}
+
+/* --------------------------------------------------------------------------
+   LEFT PANEL: WINNER FEATURED CARD
+   -------------------------------------------------------------------------- */
+.left-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border-radius: 0;
+  overflow: hidden;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.75);
+  border: 2.5px solid #142026;
+  height: 100%;
+}
+
+/* Header Bar: 1ST + NAME + 8 ĐIỂM */
+.winner-header-bar {
+  height: 72px;
+  display: flex;
+  background: #090e11;
+  flex-shrink: 0;
+  border-bottom: 2.5px solid #caa867;
+}
+
+.winner-header-bar .placement-badge {
+  width: 135px;
+  height: 100%;
+  background: linear-gradient(135deg, #1d2b33 0%, #0c1418 100%);
+  color: #ffffff;
+  font-size: 38px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 100%, 0 100%);
+  letter-spacing: 1.5px;
+  z-index: 2;
+  flex-shrink: 0;
+  filter: drop-shadow(4px 0 8px rgba(0, 0, 0, 0.6));
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+
+.winner-header-bar .player-name-container {
+  flex: 1;
+  background: linear-gradient(90deg, #ffffff 0%, #ebf1ff 60%, #faecff 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 32px;
+  margin: 0 -20px;
+  z-index: 1;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.winner-header-bar .player-name {
+  font-size: 42px;
+  font-weight: 900;
+  color: #0c1418;
+  letter-spacing: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: none;
+}
+
+.winner-header-bar .points-badge {
+  width: 150px;
+  height: 100%;
+  background: linear-gradient(135deg, #1d2b33 0%, #0c1418 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  clip-path: polygon(20px 0, 100% 0, 100% 100%, 0 100%);
+  z-index: 2;
+  flex-shrink: 0;
+  filter: drop-shadow(-4px 0 8px rgba(0, 0, 0, 0.6));
+}
+
+.winner-header-bar .points-badge .pts-num {
+  font-size: 36px;
+  font-weight: 900;
+  color: #ffffff;
+  line-height: 1;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+
+.winner-header-bar .points-badge .pts-text {
+  font-size: 13px;
+  font-weight: 800;
+  color: #caa867;
+  letter-spacing: 1.5px;
+}
+
+/* Card Body: Avatar + Stats Column */
+.winner-card-body {
+  background: #ede9dc;
+  border-left: 3px solid #142026;
+  border-right: 3px solid #142026;
+  display: flex;
+  padding: 24px 35px;
+  gap: 36px;
+  align-items: center;
+  flex: 1;
+}
+
+.avatar-wrapper {
+  width: 330px;
+  height: 440px;
+  flex-shrink: 0;
+  filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.65));
+}
+
+.avatar-frame {
+  width: 100%;
+  height: 100%;
+  border: 5px solid #45783b;
+  outline: 2px solid #b8a264;
+  border-radius: 0;
+  background: linear-gradient(180deg, #1e1133 0%, #0f071c 100%);
+  box-shadow: 0 0 25px rgba(69, 120, 59, 0.45), inset 0 0 20px rgba(0, 0, 0, 0.8);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  clip-path: polygon(
+    24px 0,
+    calc(100% - 24px) 0,
+    100% 24px,
+    100% calc(100% - 24px),
+    calc(100% - 24px) 100%,
+    24px 100%,
+    0 calc(100% - 24px),
+    0 24px
+  );
+}
+
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Stats Column (Augments + Board Value) */
+.stats-column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-left: 2.5px solid #b8b19e;
+  height: 100%;
+  padding-left: 35px;
+}
+
+.augments-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 18px;
+  width: 240px;
+}
+
+.augment-slot {
+  width: 98px;
+  height: 98px;
+  background: #0f1621;
+  border: 3.5px solid #caa867;
+  border-radius: 0;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.55), inset 0 0 10px rgba(202, 168, 103, 0.25);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  clip-path: polygon(
+    14px 0,
+    calc(100% - 14px) 0,
+    100% 14px,
+    100% calc(100% - 14px),
+    calc(100% - 14px) 100%,
+    14px 100%,
+    0 calc(100% - 14px),
+    0 14px
+  );
+}
+
+.augment-slot img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.stats-divider {
+  width: 240px;
+  height: 2.5px;
+  background: #b8b19e;
+  margin: 26px 0 20px 0;
+}
+
+.board-value-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  width: 240px;
+}
+
+.coin-icon {
+  width: 58px;
+  height: 58px;
+  background: linear-gradient(135deg, #e6c875 0%, #aa8434 100%);
+  border-radius: 0;
+  clip-path: polygon(
+    12px 0,
+    calc(100% - 12px) 0,
+    100% 12px,
+    100% calc(100% - 12px),
+    calc(100% - 12px) 100%,
+    12px 100%,
+    0 calc(100% - 12px),
+    0 12px
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+  flex-shrink: 0;
+}
+
+.coin-icon .coins-img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  filter: brightness(0);
+}
+
+.board-value-number {
+  font-size: 82px;
+  font-weight: 900;
+  color: #0c1418;
+  line-height: 1;
+  letter-spacing: -1px;
+}
+
+/* Bottom Champions Board Strip */
+.winner-units-strip {
+  background: #0d141e;
+  border: 3px solid #142026;
+  border-top: 2.5px solid #caa867;
+  padding: 12px 14px 16px 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 8px;
+  align-items: center;
+  justify-content: center;
+  min-height: 156px;
+  height: auto;
+  flex-shrink: 0;
+}
+
+.unit-card {
+  width: 74px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.star-rating-bar {
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  margin-bottom: 4px;
+  width: 100%;
+}
+
+.star-icon {
+  width: 17px;
+  height: 17px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.95)) drop-shadow(0 0 3px rgba(250, 204, 21, 0.7));
+}
+
+.champion-frame {
+  width: 68px;
+  height: 68px;
+  border-radius: 0;
+  overflow: hidden;
+  position: relative;
+  background: #141c26;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6);
+  flex-shrink: 0;
+  clip-path: polygon(
+    6px 0,
+    calc(100% - 6px) 0,
+    100% 6px,
+    100% calc(100% - 6px),
+    calc(100% - 6px) 100%,
+    6px 100%,
+    0 calc(100% - 6px),
+    0 6px
+  );
+}
+
+.champion-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Border colors theo bậc giá tướng chuẩn Esport */
+.cost-1 { border: 2.5px solid #94a3b8; }
+.cost-2 { border: 2.5px solid #22c55e; box-shadow: 0 0 8px rgba(34, 197, 94, 0.4); }
+.cost-3 { border: 2.5px solid #3b82f6; box-shadow: 0 0 10px rgba(59, 130, 246, 0.4); }
+.cost-4 { border: 2.5px solid #c084fc; box-shadow: 0 0 12px rgba(192, 132, 252, 0.5); }
+.cost-5, .cost-7 { border: 2.5px solid #f59e0b; box-shadow: 0 0 14px rgba(245, 158, 11, 0.65); }
+
+.items-row {
+  display: flex;
+  gap: 2px;
+  margin-top: 5px;
+  margin-bottom: 2px;
+  justify-content: center;
+  height: 22px;
+  width: 100%;
+}
+
+.item-slot {
+  width: 20px;
+  height: 20px;
+  border-radius: 0;
+  overflow: hidden;
+  border: 1px solid #caa867;
+  background: #000;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.item-slot img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* --------------------------------------------------------------------------
+   RIGHT PANEL: LOBBY STANDINGS (TOP 2 -> TOP 8)
+   -------------------------------------------------------------------------- */
+.right-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  gap: 12px;
+}
+
+.standing-row {
+  flex: 1;
+  min-height: 94px;
+  display: flex;
+  border-radius: 0;
+  overflow: hidden;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+  background: #0a0f13;
+  border: 1.5px solid #1f2d36;
+  position: relative;
+  clip-path: polygon(
+    0 0,
+    calc(100% - 16px) 0,
+    100% 16px,
+    100% 100%,
+    16px 100%,
+    0 calc(100% - 16px)
+  );
+}
+
+.standing-rank {
+  width: 125px;
+  height: 100%;
+  background: linear-gradient(135deg, #3d5045 0%, #1f2b24 100%);
+  color: #ffffff;
+  font-size: 35px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 100%, 0 100%);
+  letter-spacing: 1px;
+  flex-shrink: 0;
+  z-index: 2;
+  filter: drop-shadow(4px 0 8px rgba(0, 0, 0, 0.55));
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.7);
+}
+
+.standing-name-box {
+  flex: 1;
+  background: linear-gradient(90deg, #edebe0 0%, #e2dfcf 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 32px;
+  margin: 0 -20px;
+  z-index: 1;
+}
+
+.standing-name {
+  font-size: 38px;
+  font-weight: 900;
+  color: #0c1418;
+  letter-spacing: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: none;
+}
+
+.standing-pts {
+  width: 150px;
+  height: 100%;
+  background: linear-gradient(135deg, #4f2199 0%, #290e54 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  clip-path: polygon(20px 0, 100% 0, 100% 100%, 0 100%);
+  flex-shrink: 0;
+  z-index: 2;
+  filter: drop-shadow(-4px 0 8px rgba(0, 0, 0, 0.55));
+}
+
+.standing-pts .pts-num {
+  font-size: 36px;
+  font-weight: 900;
+  color: #ffffff;
+  line-height: 1;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+
+.standing-pts .pts-text {
+  font-size: 13px;
+  font-weight: 800;
+  color: #e2d9f3;
+  letter-spacing: 1.5px;
+}

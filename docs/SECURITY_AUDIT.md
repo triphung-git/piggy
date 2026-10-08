@@ -23,16 +23,7 @@
 
 ## 2. Các tệp nhạy cảm và dữ liệu cá nhân bị Git theo dõi (Tracked Files)
 
-Các tệp đang bị theo dõi trong Git index cần gỡ bỏ (`git rm --cached`):
-
-- `.env`
-- `"output/clean_matches_b\303\255_\341\272\271o_0602.json"`
-- `output/clean_matches_latest.json`
-- `output/overlay.css`
-- `output/overlay.html`
-- `output/overlay_latest.png`
-- `"output/summary_b\303\255_\341\272\271o_0602.csv"`
-- `scratch/__pycache__/test_12_units.cpython-314.pyc`
+✅ Không có tệp nhạy cảm bị theo dõi trong Git index.
 
 ## 3. Khuyến nghị và hành động cần thực hiện
 
