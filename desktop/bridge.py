@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import shutil
 import threading
 from pathlib import Path
@@ -25,7 +24,10 @@ from backend.export_service import export_html_to_png
 from backend.file_watcher import ConfigWatcher
 from backend.match_service import MatchService
 from backend.network_hub import notify_sync, is_server_running, set_bridge_reference
-from backend.overlay_generator import generate_overlay_html, load_overlay_config as load_generator_config
+from backend.overlay_generator import (
+    generate_overlay_html,
+    load_overlay_config as load_generator_config,
+)
 from backend.paths import get_app_dir, resolve_resource
 
 logger = logging.getLogger("bridge")
@@ -98,13 +100,17 @@ class StudioBridge:
         def on_env_changed():
             logger.info(".env changed → Reloading config")
             from backend.config import reload_env
+
             reload_env()
             cfg = AppConfig.load()
             self._match_service.config = cfg
-            self._match_service.active_puuid = None  # Reset PUUID để tra cứu theo Riot ID mới
+            self._match_service.active_puuid = (
+                None  # Reset PUUID để tra cứu theo Riot ID mới
+            )
             self.notify_frontend("onAppStateUpdate", {"config": cfg.to_dict()})
 
             if cfg.api_key and cfg.game_name:
+
                 def on_matches_fetched(matches):
                     if matches:
                         logger.info("Fetched %d matches after .env edit", len(matches))
@@ -123,14 +129,21 @@ class StudioBridge:
                         )
 
                 def on_matches_error(exc):
-                    logger.warning("Failed to fetch matches for %s#%s: %s", cfg.game_name, cfg.tag_line, exc)
+                    logger.warning(
+                        "Failed to fetch matches for %s#%s: %s",
+                        cfg.game_name,
+                        cfg.tag_line,
+                        exc,
+                    )
                     self.notify_frontend(
                         "onAppStateUpdate",
                         {
                             "fetch_status": {
                                 "success": False,
                                 "error": str(exc),
-                                "is_auth_error": "401" in str(exc) or "403" in str(exc) or "hết hạn" in str(exc),
+                                "is_auth_error": "401" in str(exc)
+                                or "403" in str(exc)
+                                or "hết hạn" in str(exc),
                                 "timestamp": time.time(),
                             },
                         },
@@ -185,7 +198,11 @@ class StudioBridge:
             OUTPUT_DIR / "clean_matches_latest.json",
             resolve_resource("output/clean_matches_latest.json"),
         ]
-        for cand in sorted(set(candidates), key=lambda p: p.stat().st_mtime if p.exists() else 0, reverse=True):
+        for cand in sorted(
+            set(candidates),
+            key=lambda p: p.stat().st_mtime if p.exists() else 0,
+            reverse=True,
+        ):
             if cand.exists():
                 try:
                     with open(cand, "r", encoding="utf-8") as f:
@@ -193,10 +210,15 @@ class StudioBridge:
                         if cand_list:
                             # Ưu tiên trận có người đứng top 1
                             match_data = next(
-                                (m for m in cand_list if any(
-                                    p.get("placement") == 1 for p in m.get("lobby", [])
-                                )),
-                                cand_list[0]
+                                (
+                                    m
+                                    for m in cand_list
+                                    if any(
+                                        p.get("placement") == 1
+                                        for p in m.get("lobby", [])
+                                    )
+                                ),
+                                cand_list[0],
                             )
                             self._match_service.cached_matches = cand_list
                             self._match_service.active_match = match_data
@@ -213,7 +235,10 @@ class StudioBridge:
         match_data = self._get_best_match_data()
         if not match_data:
             logger.error("No match data to compile overlay")
-            return {"success": False, "error": "Chưa có dữ liệu trận đấu. Vui lòng fetch matches trước."}
+            return {
+                "success": False,
+                "error": "Chưa có dữ liệu trận đấu. Vui lòng fetch matches trước.",
+            }
 
         match_id = match_data.get("match_id", "LIVE_MATCH")
         output_html = OUTPUT_DIR / "overlay.html"
@@ -246,20 +271,24 @@ class StudioBridge:
                 logger.debug("Failed to update overlay window: %s", e)
                 try:
                     server_port = gen_cfg.get("server_port", 8080)
-                    self._overlay_window.load_url(f"http://127.0.0.1:{server_port}/overlay")
+                    self._overlay_window.load_url(
+                        f"http://127.0.0.1:{server_port}/overlay"
+                    )
                     self._overlay_window.show()
                     self._is_overlay_visible = True
                 except Exception:
                     pass
 
         # 4. Thông báo WS cục bộ → OBS Browser Source tự fetch & DOM-swap
-        notify_sync({
-            "type": "OVERLAY_RENDERED",
-            "success": True,
-            "match_id": match_id,
-            "source": source,
-            "timestamp": time.time(),
-        })
+        notify_sync(
+            {
+                "type": "OVERLAY_RENDERED",
+                "success": True,
+                "match_id": match_id,
+                "source": source,
+                "timestamp": time.time(),
+            }
+        )
 
         return {
             "success": True,
@@ -268,7 +297,9 @@ class StudioBridge:
             "png_path": str(output_png.resolve()),
         }
 
-    def render_overlay(self, transform: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    def render_overlay(
+        self, transform: Optional[dict[str, Any]] = None
+    ) -> dict[str, Any]:
         """
         Xử lý nút 'Render':
         1. Render ngay từ cache cục bộ (<50ms).
@@ -282,9 +313,12 @@ class StudioBridge:
         # Phase 2: Async check Riot API
         cfg = AppConfig.load()
         if cfg.api_key and cfg.api_key.strip() and cfg.game_name:
+
             def on_api_complete(matches):
                 if matches:
-                    logger.info("Riot API returned %d matches → updating overlay", len(matches))
+                    logger.info(
+                        "Riot API returned %d matches → updating overlay", len(matches)
+                    )
                     self._compile_and_notify(source="RiotLiveAPI")
                     self.notify_frontend(
                         "onAppStateUpdate",
@@ -302,10 +336,12 @@ class StudioBridge:
                         "fetch_status": {
                             "success": False,
                             "error": str(exc),
-                            "is_auth_error": "401" in str(exc) or "403" in str(exc) or "hết hạn" in str(exc),
+                            "is_auth_error": "401" in str(exc)
+                            or "403" in str(exc)
+                            or "hết hạn" in str(exc),
                             "timestamp": time.time(),
                         }
-                    }
+                    },
                 )
 
             self._match_service.fetch_recent_matches_async(
@@ -378,6 +414,12 @@ class StudioBridge:
             "obs_url": "http://localhost:8080/overlay",
         }
 
+    def get_studio_token(self) -> str:
+        """Lấy token xác thực cục bộ (S1, S2)."""
+        from backend.network_hub import get_current_token
+
+        return get_current_token()
+
     def is_configured(self) -> bool:
         """Kiểm tra xem người dùng đã cấu hình API key chưa."""
         cfg = AppConfig.load()
@@ -403,7 +445,9 @@ class StudioBridge:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def update_overlay_transform(self, transform_data: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    def update_overlay_transform(
+        self, transform_data: Optional[dict[str, Any]] = None
+    ) -> dict[str, Any]:
         """Cập nhật transform cho Overlay (đã loại bỏ)."""
         return {"success": True}
 
@@ -413,6 +457,7 @@ class StudioBridge:
         """
         try:
             from backend.data_parser import get_ddragon_loader
+
             loader = get_ddragon_loader("en_US")
             seen: set[tuple] = set()
             result = []
@@ -467,7 +512,9 @@ class StudioBridge:
         cfg = AppConfig.load()
 
         def on_progress(pct: int, status_text: str) -> None:
-            self.notify_frontend("onProgressUpdate", {"pct": pct, "status": status_text})
+            self.notify_frontend(
+                "onProgressUpdate", {"pct": pct, "status": status_text}
+            )
 
         try:
             matches = self._match_service.fetch_recent_matches(
@@ -547,11 +594,11 @@ class StudioBridge:
     def set_auto_polling(self, enabled: bool, interval: int = 60) -> bool:
         """Bật/Tắt luồng tự động phát hiện trận mới."""
         if enabled:
-            ok = self._match_service.start_auto_polling(
+            self._match_service.start_auto_polling(
                 interval_seconds=interval, on_new_match_callback=self._on_new_match_cb
             )
         else:
-            ok = self._match_service.stop_auto_polling()
+            self._match_service.stop_auto_polling()
 
         is_p = self._match_service.is_polling_active()
         self.notify_frontend("onAppStateUpdate", {"is_polling": is_p})
@@ -570,7 +617,9 @@ class StudioBridge:
         if result and len(result) > 0:
             chosen_path = Path(result[0])
             if chosen_path.exists():
-                clean_name = "".join(c if c.isalnum() else "_" for c in player_name).lower()
+                clean_name = "".join(
+                    c if c.isalnum() else "_" for c in player_name
+                ).lower()
                 dest_file = AVATARS_DIR / f"{clean_name}{chosen_path.suffix}"
                 shutil.copy2(chosen_path, dest_file)
 
@@ -608,7 +657,11 @@ class StudioBridge:
     def get_riot_config(self) -> dict[str, Any]:
         """Lấy thông tin cấu hình Riot hiện tại."""
         cfg = AppConfig.load()
-        masked_key = f"{cfg.api_key[:6]}...{cfg.api_key[-4:]}" if len(cfg.api_key) > 10 else (cfg.api_key or "")
+        masked_key = (
+            f"{cfg.api_key[:6]}...{cfg.api_key[-4:]}"
+            if len(cfg.api_key) > 10
+            else (cfg.api_key or "")
+        )
         return {
             "riot_id": cfg.riot_id or f"{cfg.game_name}#{cfg.tag_line}",
             "game_name": cfg.game_name,
@@ -626,7 +679,10 @@ class StudioBridge:
         if not riot_id_str:
             return {"success": False, "error": "Riot ID không được để trống"}
         if "#" not in riot_id_str:
-            return {"success": False, "error": "Riot ID phải kèm theo #TAG (ví dụ: TenNguoiChoi#VN2)"}
+            return {
+                "success": False,
+                "error": "Riot ID phải kèm theo #TAG (ví dụ: TenNguoiChoi#VN2)",
+            }
 
         AppConfig.save_env_values({"riot_id": riot_id_str})
         cfg = AppConfig.load()
@@ -680,7 +736,9 @@ class StudioBridge:
                     "fetch_status": {
                         "success": False,
                         "error": str(exc),
-                        "is_auth_error": "401" in str(exc) or "403" in str(exc) or "hết hạn" in str(exc),
+                        "is_auth_error": "401" in str(exc)
+                        or "403" in str(exc)
+                        or "hết hạn" in str(exc),
                         "timestamp": time.time(),
                     }
                 },
@@ -695,5 +753,7 @@ class StudioBridge:
             on_error=on_error,
         )
 
-        return {"success": True, "message": f"Đang kết nối Riot API tải trận của {cfg.game_name}#{cfg.tag_line}..."}
-
+        return {
+            "success": True,
+            "message": f"Đang kết nối Riot API tải trận của {cfg.game_name}#{cfg.tag_line}...",
+        }

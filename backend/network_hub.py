@@ -13,9 +13,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
+import secrets
 import threading
 import time
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
@@ -24,10 +25,24 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
-from backend.config import AppConfig, load_overlay_config, save_overlay_config
+from backend.config import load_overlay_config, save_overlay_config
 from backend.paths import get_app_dir, resolve_resource
 
 logger = logging.getLogger("network_hub")
+
+# Token bí mật sinh ngẫu nhiên mỗi lần khởi động (S1, S2)
+_STUDIO_TOKEN: str = secrets.token_urlsafe(32)
+
+
+def get_current_token() -> str:
+    """Trả về token bí mật dùng để xác thực các thao tác ghi (S1, S2)."""
+    return _STUDIO_TOKEN
+
+
+ALLOWED_HOST_PATTERN = re.compile(r"^(localhost|127\.0\.0\.1)(:\d+)?$", re.IGNORECASE)
+ALLOWED_ORIGIN_PATTERN = re.compile(
+    r"^(https?://(localhost|127\.0\.0\.1)(:\d+)?|null)$", re.IGNORECASE
+)
 
 
 # --------------------------------------------------------------------- #
@@ -47,7 +62,9 @@ class LocalNotifier:
 
     def disconnect(self, ws: WebSocket) -> None:
         self._connections.discard(ws)
-        logger.debug("Local WS client disconnected. Remaining: %d", len(self._connections))
+        logger.debug(
+            "Local WS client disconnected. Remaining: %d", len(self._connections)
+        )
 
     async def notify_all(self, message: Dict[str, Any]) -> None:
         """Gửi thông báo tới tất cả các OBS / overlay tabs đang mở."""
@@ -65,14 +82,45 @@ class LocalNotifier:
 # FastAPI App — localhost only
 app = FastAPI(title="TFT Post-Match Studio (Standalone)", docs_url=None, redoc_url=None)
 
-# CORS cho localhost: OBS, PyWebView, Browser đều cùng máy
+# S3: CORS chỉ cho localhost/127.0.0.1, tuyệt đối không dùng '*'
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # localhost-only binding — safe
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def security_middleware(request: Request, call_next):
+    """S1: Kiểm tra Host, Origin và yêu cầu X-Studio-Token cho các thao tác ghi."""
+    # 1. Kiểm tra Host
+    host = request.headers.get("host", "")
+    if host and not ALLOWED_HOST_PATTERN.match(host):
+        logger.warning("Blocked request with forbidden host: %s", host)
+        return JSONResponse({"error": "Forbidden host"}, status_code=403)
+
+    # 2. Kiểm tra Origin
+    origin = request.headers.get("origin")
+    if origin and not ALLOWED_ORIGIN_PATTERN.match(origin):
+        logger.warning("Blocked request with forbidden origin: %s", origin)
+        return JSONResponse({"error": "Forbidden origin"}, status_code=403)
+
+    # 3. Yêu cầu token cho các method ghi (POST, PUT, DELETE, PATCH)
+    if request.method in ("POST", "PUT", "DELETE", "PATCH"):
+        token = request.headers.get("x-studio-token", "")
+        if not token or not secrets.compare_digest(token, _STUDIO_TOKEN):
+            logger.warning(
+                "Unauthorized write attempt on %s without valid token", request.url.path
+            )
+            return JSONResponse(
+                {"error": "Forbidden: Invalid or missing X-Studio-Token"},
+                status_code=403,
+            )
+
+    return await call_next(request)
+
 
 notifier = LocalNotifier()
 
@@ -115,10 +163,15 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         # Gửi trạng thái ban đầu
         current_cfg = load_overlay_config()
-        await websocket.send_text(json.dumps({
-            "type": "INITIAL_STATE",
-            "overlay_config": current_cfg,
-        }, ensure_ascii=False))
+        await websocket.send_text(
+            json.dumps(
+                {
+                    "type": "INITIAL_STATE",
+                    "overlay_config": current_cfg,
+                },
+                ensure_ascii=False,
+            )
+        )
 
         # Giữ kết nối (chỉ nhận — overlay không cần gửi lệnh ngược về)
         while True:
@@ -164,12 +217,14 @@ async def trigger_render(request: Request):
 
     res = _bridge_ref.render_overlay()
 
-    notify_sync({
-        "type": "OVERLAY_RENDERED",
-        "success": res.get("success", False),
-        "match_id": res.get("match_id"),
-        "timestamp": time.time(),
-    })
+    notify_sync(
+        {
+            "type": "OVERLAY_RENDERED",
+            "success": res.get("success", False),
+            "match_id": res.get("match_id"),
+            "timestamp": time.time(),
+        }
+    )
     return res
 
 
@@ -195,8 +250,13 @@ def get_riot_info():
     if _bridge_ref:
         return _bridge_ref.get_riot_config()
     from backend.config import AppConfig
+
     cfg = AppConfig.load()
-    masked = f"{cfg.api_key[:6]}...{cfg.api_key[-4:]}" if len(cfg.api_key) > 10 else (cfg.api_key or "")
+    masked = (
+        f"{cfg.api_key[:6]}...{cfg.api_key[-4:]}"
+        if len(cfg.api_key) > 10
+        else (cfg.api_key or "")
+    )
     return {
         "riot_id": cfg.riot_id or f"{cfg.game_name}#{cfg.tag_line}",
         "game_name": cfg.game_name,
@@ -227,6 +287,7 @@ def get_augments_list():
     """
     try:
         from backend.data_parser import get_ddragon_loader
+
         loader = get_ddragon_loader("en_US")
         seen_names: set[str] = set()
         result = []
@@ -257,11 +318,16 @@ async def save_custom_augments(request: Request):
     try:
         body = await request.json()
     except Exception:
-        return JSONResponse({"success": False, "error": "Invalid JSON body"}, status_code=400)
+        return JSONResponse(
+            {"success": False, "error": "Invalid JSON body"}, status_code=400
+        )
 
     raw_augments = body.get("custom_augments", [])
     if not isinstance(raw_augments, list):
-        return JSONResponse({"success": False, "error": "custom_augments must be a list"}, status_code=400)
+        return JSONResponse(
+            {"success": False, "error": "custom_augments must be a list"},
+            status_code=400,
+        )
 
     # Chuẩn hóa: giữ tối đa 3, phần tử empty string -> None
     normalized: list = []
@@ -286,11 +352,13 @@ async def save_custom_augments(request: Request):
     if _bridge_ref:
         _bridge_ref.notify_frontend("onAppStateUpdate", {"overlay_config": updated})
         import threading
+
         def _recompile():
             try:
                 _bridge_ref._compile_and_notify(source="AugmentsUpdate")
             except Exception as exc:
                 logger.warning("Augments re-compile error: %s", exc)
+
         threading.Thread(target=_recompile, daemon=True).start()
     else:
         # Standalone web mode (không có bridge) — chỉ broadcast config đã đổi
@@ -313,13 +381,15 @@ def get_overlay_inner_html():
     overlay_path = app_dir / "output" / "overlay.html"
 
     if not overlay_path.exists():
-        return JSONResponse({
-            "html": "<div style='color:#fff;font-family:sans-serif;padding:40px;text-align:center'>"
-                    "<p>⏳ Chưa có dữ liệu overlay. Nhấn <b>Render</b> trong Control Panel để bắt đầu.</p>"
-                    "</div>",
-            "ready": False,
-            "timestamp": time.time(),
-        })
+        return JSONResponse(
+            {
+                "html": "<div style='color:#fff;font-family:sans-serif;padding:40px;text-align:center'>"
+                "<p>⏳ Chưa có dữ liệu overlay. Nhấn <b>Render</b> trong Control Panel để bắt đầu.</p>"
+                "</div>",
+                "ready": False,
+                "timestamp": time.time(),
+            }
+        )
 
     try:
         with open(overlay_path, "r", encoding="utf-8") as f:
@@ -337,18 +407,22 @@ def get_overlay_inner_html():
         if body_start != -1 and body_end != -1:
             # Tìm > đầu tiên sau <body để bỏ qua attributes
             tag_close = content.find(">", body_start)
-            inner_html = content[tag_close + 1:body_end].strip()
+            inner_html = content[tag_close + 1 : body_end].strip()
         else:
             inner_html = content  # fallback: trả về toàn bộ
 
-        return JSONResponse({
-            "html": inner_html,
-            "ready": True,
-            "timestamp": time.time(),
-        })
+        return JSONResponse(
+            {
+                "html": inner_html,
+                "ready": True,
+                "timestamp": time.time(),
+            }
+        )
     except Exception as e:
         logger.error("Failed to read overlay HTML: %s", e)
-        return JSONResponse({"html": "", "ready": False, "error": str(e)}, status_code=500)
+        return JSONResponse(
+            {"html": "", "ready": False, "error": str(e)}, status_code=500
+        )
 
 
 # --------------------------------------------------------------------- #
@@ -430,7 +504,9 @@ def serve_overlay_html():
     <script>
     (function() {
       'use strict';
-      var wsUrl = 'ws://127.0.0.1:8080/ws';
+      var loc = window.location;
+      var proto = loc.protocol === 'https:' ? 'wss:' : 'ws:';
+      var wsUrl = proto + '//' + (loc.host || '127.0.0.1:8080') + '/ws';
       var socket = null;
       var reconnectTimer = null;
       var isUpdating = false;
@@ -468,6 +544,9 @@ def serve_overlay_html():
           })
           .catch(function() { isUpdating = false; });
       }
+
+      // Gắn ra window để PyWebView bridge gọi được trực tiếp
+      window.smoothUpdate = smoothUpdate;
 
       function connect() {
         if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
@@ -569,7 +648,9 @@ def serve_overlay_png():
     png_path = app_dir / "output" / "overlay_latest.png"
     if png_path.exists():
         return FileResponse(png_path, media_type="image/png")
-    return JSONResponse({"error": "Chưa có ảnh overlay. Nhấn Render trước."}, status_code=404)
+    return JSONResponse(
+        {"error": "Chưa có ảnh overlay. Nhấn Render trước."}, status_code=404
+    )
 
 
 # --------------------------------------------------------------------- #
@@ -591,7 +672,9 @@ app.mount("/output", StaticFiles(directory=str(output_path)), name="output")
 # Web Control Panel (React build)
 dist_dir = resolve_resource("Web Overlay/dist")
 if dist_dir.exists():
-    app.mount("/app", StaticFiles(directory=str(dist_dir), html=True), name="control_app")
+    app.mount(
+        "/app", StaticFiles(directory=str(dist_dir), html=True), name="control_app"
+    )
 
     @app.get("/")
     def index_redirect():
@@ -610,7 +693,9 @@ def start_server(port: int = 8080) -> None:
     _is_running = True
 
     def run():
-        logger.info("TFT Studio Server started at http://127.0.0.1:%d (localhost only)", port)
+        logger.info(
+            "TFT Studio Server started at http://127.0.0.1:%d (localhost only)", port
+        )
         logger.info("OBS Browser Source: http://localhost:%d/overlay", port)
         config = uvicorn.Config(
             app=app,
