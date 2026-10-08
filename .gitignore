@@ -21,17 +21,19 @@ env/
 # === Node.js / Frontend ===
 node_modules/
 Web Overlay/dist/
+web/dist/
 Web Overlay/.cache/
-pnpm-lock.yaml
-package-lock.json
+web/.cache/
 
 # === Output & Cache (dữ liệu người dùng) ===
 output/
 scratch/
+sbom/
 *.log
 
 # === Assets cá nhân ===
 assets/avatars/
+!assets/avatars/.gitkeep
 
 # === PyInstaller Build Artifacts ===
 dist_setup/
@@ -45,3 +47,4 @@ installer.iss.bak
 *.swo
 .DS_Store
 Thumbs.db
+
