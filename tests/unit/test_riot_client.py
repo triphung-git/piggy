@@ -8,14 +8,6 @@ Kiem tra phan loai loi 401, 404, retry 429 va backoff.
 import pytest
 import responses
 
-from backend.riot_client import (
-    AccountNotFoundError,
-    AuthenticationError,
-    MatchNotFoundError,
-    RateLimitError,
-    RiotAPIError,
-    RiotTFTClient,
-)
 from tests.fixtures.mock_responses import (
     MOCK_ACCOUNT_200,
     MOCK_MATCH_IDS_200,
@@ -24,6 +16,14 @@ from tests.fixtures.mock_responses import (
     MOCK_RESPONSE_404,
     MOCK_RESPONSE_429,
     MOCK_RESPONSE_500,
+)
+from tft_studio.riot.client import (
+    AccountNotFoundError,
+    AuthenticationError,
+    MatchNotFoundError,
+    RateLimitError,
+    RiotAPIError,
+    RiotTFTClient,
 )
 
 

@@ -11,9 +11,9 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from backend.data_parser import validate_custom_augment
-from backend.network_hub import app, get_current_token
 from desktop.bridge import validate_avatar_file
+from tft_studio.api.hub import app, get_current_token
+from tft_studio.data.parser import validate_custom_augment
 
 
 def test_validate_custom_augment_rejects_path_traversal():
@@ -73,7 +73,7 @@ def test_api_augments_post_rejects_path_traversal(tmp_path):
         "Host": "localhost:8080",
     }
 
-    with patch("backend.network_hub.load_overlay_config", return_value={}):
+    with patch("tft_studio.api.hub.load_overlay_config", return_value={}):
         res = client.post(
             "/api/augments",
             json={"custom_augments": ["../../malicious.png", None, None]},

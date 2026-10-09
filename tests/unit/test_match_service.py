@@ -9,8 +9,8 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from backend.config import AppConfig
-from backend.match_service import MatchService
+from tft_studio.core.config import AppConfig
+from tft_studio.service.match_service import MatchService
 
 
 def _get_dummy_config():
@@ -55,7 +55,7 @@ def test_match_service_resolve_puuid():
     cfg = _get_dummy_config()
     service = MatchService(config=cfg)
 
-    with patch("backend.match_service.RiotTFTClient") as mock_client_cls:
+    with patch("tft_studio.service.match_service.RiotTFTClient") as mock_client_cls:
         mock_instance = MagicMock()
         mock_instance.get_puuid_by_riot_id.return_value = "fake-puuid-kr"
         mock_client_cls.return_value = mock_instance
@@ -75,8 +75,8 @@ def test_match_service_fetch_recent_matches(tmp_path):
         raw_match = json.load(f)
 
     with (
-        patch("backend.match_service.RiotTFTClient") as mock_client_cls,
-        patch("backend.match_service.OUTPUT_DIR", tmp_path),
+        patch("tft_studio.service.match_service.RiotTFTClient") as mock_client_cls,
+        patch("tft_studio.service.match_service.OUTPUT_DIR", tmp_path),
     ):
         mock_instance = MagicMock()
         mock_instance.get_puuid_by_riot_id.return_value = "fake-puuid-001"

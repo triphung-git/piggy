@@ -8,7 +8,7 @@ import json
 import re
 from pathlib import Path
 
-from backend.overlay_generator import generate_overlay_html, load_overlay_config
+from tft_studio.render.generator import generate_overlay_html, load_overlay_config
 
 FIXTURES_DIR = Path("tests/fixtures")
 GOLDEN_DIR = Path("tests/golden")
@@ -66,7 +66,7 @@ def test_generate_overlay_html_contains_critical_sections(tmp_path):
 
 def test_find_avatar_url_fallback():
     """Kiem tra fallback avatar khi khong co avatar tuy bien."""
-    from backend.overlay_generator import find_avatar_url
+    from tft_studio.render.generator import find_avatar_url
 
     cfg = {"player_avatars": {}}
     url = find_avatar_url(

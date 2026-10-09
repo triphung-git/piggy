@@ -6,7 +6,7 @@ Kiem tra _SlidingWindowLimiter khong vuot qua 20 request/giay.
 
 import time
 
-from backend.riot_client import _SlidingWindowLimiter
+from tft_studio.riot.client import _SlidingWindowLimiter
 
 
 def test_sliding_window_limiter_does_not_exceed_limits():

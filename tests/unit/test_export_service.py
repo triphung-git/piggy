@@ -7,7 +7,7 @@ Characterization tests cho export_service: find_browser_executable va export_htm
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from backend.export_service import export_html_to_png, find_browser_executable
+from tft_studio.render.exporter import export_html_to_png, find_browser_executable
 
 
 def test_find_browser_executable():
@@ -20,7 +20,7 @@ def test_find_browser_executable():
 
 def test_export_html_to_png_no_browser():
     """Kiem tra tra ve False khi khong tim thay browser executable."""
-    with patch("backend.export_service.find_browser_executable", return_value=None):
+    with patch("tft_studio.render.exporter.find_browser_executable", return_value=None):
         ok = export_html_to_png(Path("dummy.html"), Path("dummy.png"))
         assert ok is False
 
@@ -41,10 +41,10 @@ def test_export_html_to_png_successful_run(tmp_path):
 
     with (
         patch(
-            "backend.export_service.find_browser_executable",
+            "tft_studio.render.exporter.find_browser_executable",
             return_value="C:\\fake\\chrome.exe",
         ),
-        patch("backend.export_service.subprocess.run", side_effect=fake_subprocess_run),
+        patch("tft_studio.render.exporter.subprocess.run", side_effect=fake_subprocess_run),
     ):
         ok = export_html_to_png(html_file, out_png)
         assert ok is True

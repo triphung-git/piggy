@@ -7,7 +7,7 @@ Characterization tests cho DataParser va parse_tft_match.
 import json
 from pathlib import Path
 
-from backend.data_parser import DDragonLoader, parse_tft_match
+from tft_studio.data.parser import DDragonLoader, parse_tft_match
 
 FIXTURES_DIR = Path("tests/fixtures")
 
@@ -76,7 +76,7 @@ def test_parse_tft_match_without_target_puuid():
 
 def test_export_summary_to_csv(tmp_path):
     """Kiem tra export_summary_to_csv xuat file CSV hop le."""
-    from backend.data_parser import export_summary_to_csv
+    from tft_studio.data.parser import export_summary_to_csv
 
     clean_path = FIXTURES_DIR / "match_1_clean.json"
     with open(clean_path, encoding="utf-8") as f:

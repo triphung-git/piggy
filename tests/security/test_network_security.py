@@ -10,7 +10,7 @@ Kiem tra bao mat mang S1, S3:
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.network_hub import app, get_current_token
+from tft_studio.api.hub import app, get_current_token
 
 
 @pytest.fixture

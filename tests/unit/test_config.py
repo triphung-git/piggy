@@ -6,7 +6,7 @@ Characterization tests cho load_overlay_config, save_overlay_config va AppConfig
 
 from unittest.mock import patch
 
-from backend.config import (
+from tft_studio.core.config import (
     AppConfig,
     load_overlay_config,
     save_overlay_config,
@@ -28,7 +28,7 @@ def test_save_and_load_overlay_config(tmp_path):
     fake_config_file = tmp_path / "overlay_config.json"
     initial_data = {"tournament_title": "TEST TOURNAMENT", "stage_title": "FINALS"}
 
-    with patch("backend.config.OVERLAY_CONFIG_PATH", fake_config_file):
+    with patch("tft_studio.core.config.OVERLAY_CONFIG_PATH", fake_config_file):
         save_overlay_config(initial_data)
         assert fake_config_file.exists()
 
@@ -45,7 +45,7 @@ def test_save_and_load_overlay_config(tmp_path):
 def test_app_config_load_from_env(monkeypatch, tmp_path):
     """Kiem tra AppConfig.load doc dung bien moi truong."""
     fake_env = tmp_path / ".env.empty"
-    with patch("backend.config.ENV_PATH", fake_env):
+    with patch("tft_studio.core.config.ENV_PATH", fake_env):
         monkeypatch.setenv("RIOT_API_KEY", "RGAPI-test-api-key-12345678")
         monkeypatch.setenv("RIOT_ID", "TestUser#VN1")
         monkeypatch.setenv("REGION", "VN")
@@ -69,7 +69,7 @@ def test_save_env_values(tmp_path):
     fake_env = tmp_path / ".env.test"
     fake_env.write_text("RIOT_API_KEY=RGAPI-old-key\nREGION=VN\n", encoding="utf-8")
 
-    with patch("backend.config.ENV_PATH", fake_env):
+    with patch("tft_studio.core.config.ENV_PATH", fake_env):
         AppConfig.save_env_values(
             {"api_key": "RGAPI-new-key-123456", "riot_id": "NewPlayer#VN2"}
         )
@@ -83,8 +83,8 @@ def test_save_env_values(tmp_path):
 def test_is_configured(tmp_path, monkeypatch):
     """Kiem tra ham is_configured voi cac trang thai co va khong co key."""
     fake_env = tmp_path / ".env.empty"
-    with patch("backend.config.ENV_PATH", fake_env):
-        from backend.config import is_configured
+    with patch("tft_studio.core.config.ENV_PATH", fake_env):
+        from tft_studio.core.config import is_configured
 
         monkeypatch.setenv("RIOT_API_KEY", "")
         monkeypatch.setenv("RIOT_ID", "")
