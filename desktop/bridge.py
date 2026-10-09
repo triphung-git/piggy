@@ -19,18 +19,18 @@ from typing import Any
 
 import webview
 
-from backend.config import AppConfig, load_overlay_config, save_overlay_config
-from backend.export_service import export_html_to_png
-from backend.file_watcher import ConfigWatcher
-from backend.match_service import MatchService
-from backend.network_hub import is_server_running, notify_sync, set_bridge_reference
-from backend.overlay_generator import (
+from tft_studio.api.hub import is_server_running, notify_sync, set_bridge_reference
+from tft_studio.core.config import AppConfig, load_overlay_config, save_overlay_config
+from tft_studio.core.paths import get_app_dir, resolve_resource
+from tft_studio.render.exporter import export_html_to_png
+from tft_studio.render.generator import (
     generate_overlay_html,
 )
-from backend.overlay_generator import (
+from tft_studio.render.generator import (
     load_overlay_config as load_generator_config,
 )
-from backend.paths import get_app_dir, resolve_resource
+from tft_studio.service.file_watcher import ConfigWatcher
+from tft_studio.service.match_service import MatchService
 
 logger = logging.getLogger("bridge")
 
@@ -101,7 +101,7 @@ class StudioBridge:
 
         def on_env_changed():
             logger.info(".env changed → Reloading config")
-            from backend.config import reload_env
+            from tft_studio.core.config import reload_env
 
             reload_env()
             cfg = AppConfig.load()
@@ -421,7 +421,7 @@ class StudioBridge:
 
     def get_studio_token(self) -> str:
         """Lấy token xác thực cục bộ (S1, S2)."""
-        from backend.network_hub import get_current_token
+        from tft_studio.api.hub import get_current_token
 
         return get_current_token()
 
@@ -461,7 +461,7 @@ class StudioBridge:
         Mỗi mục: { "id": str, "name": str (tiếng Anh), "image": str (filename.png) }
         """
         try:
-            from backend.data_parser import get_ddragon_loader
+            from tft_studio.data.parser import get_ddragon_loader
 
             loader = get_ddragon_loader("en_US")
             seen: set[tuple] = set()
@@ -488,7 +488,7 @@ class StudioBridge:
                       hoặc None/empty để dùng Auto (lấy từ trận đấu).
         """
         try:
-            from backend.data_parser import validate_custom_augment
+            from tft_studio.data.parser import validate_custom_augment
 
             normalized: list = []
             for item in (augments or [])[:3]:

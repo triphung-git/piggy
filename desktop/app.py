@@ -34,13 +34,22 @@ if sys.platform == "win32":
 BASE_DIR = Path(__file__).resolve().parent.parent
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
+src_dir = BASE_DIR / "src"
+if src_dir.exists() and str(src_dir) not in sys.path:
+    sys.path.insert(0, str(src_dir))
 
 import webview
 
-from backend.match_service import MatchService
-from backend.overlay_generator import generate_overlay_html
-from backend.overlay_generator import load_overlay_config as load_generator_config
 from desktop.bridge import StudioBridge
+from tft_studio.api.hub import start_server
+from tft_studio.core.paths import get_app_dir, resolve_resource
+from tft_studio.render.generator import (
+    generate_overlay_html,
+)
+from tft_studio.render.generator import (
+    load_overlay_config as load_generator_config,
+)
+from tft_studio.service.match_service import MatchService
 
 logging.basicConfig(
     level=logging.INFO,
@@ -49,9 +58,6 @@ logging.basicConfig(
     stream=sys.stdout,
 )
 logger = logging.getLogger("desktop_app")
-
-from backend.network_hub import start_server
-from backend.paths import get_app_dir, resolve_resource
 
 BASE_DIR = get_app_dir()
 OUTPUT_DIR = BASE_DIR / "output"
