@@ -10,15 +10,19 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
+src_dir = BASE_DIR / "src"
+if src_dir.exists() and str(src_dir) not in sys.path:
+    sys.path.insert(0, str(src_dir))
 
-from backend.config import AppConfig, reload_env
-from backend.riot_client import (
-    RiotTFTClient,
-    AuthenticationError,
+from tft_studio.core.config import AppConfig, reload_env
+from tft_studio.riot.client import (
     AccountNotFoundError,
+    AuthenticationError,
     RateLimitError,
     RiotAPIError,
+    RiotTFTClient,
 )
+
 
 def test_connection():
     print("=" * 60)
@@ -28,12 +32,12 @@ def test_connection():
     reload_env()
     cfg = AppConfig.load()
 
-    print(f"\n1. CẤU HÌNH TỪ .ENV:")
+    print("\n1. CẤU HÌNH TỪ .ENV:")
     print(f"   - Riot ID         : {cfg.game_name}#{cfg.tag_line}")
     print(f"   - Khu vực (Region): {cfg.region}")
     print(f"   - Routing Account : {cfg.account_routing}")
     print(f"   - Routing Match   : {cfg.match_routing}")
-    
+
     masked_key = f"{cfg.api_key[:8]}...{cfg.api_key[-4:]}" if len(cfg.api_key) > 12 else (cfg.api_key or "(TRỐNG)")
     print(f"   - API Key         : {masked_key}")
 
@@ -57,7 +61,7 @@ def test_connection():
 
     try:
         puuid = client.get_puuid_by_riot_id(cfg.game_name, cfg.tag_line)
-        print(f"   [OK] Xác thực tài khoản thành công!")
+        print("   [OK] Xác thực tài khoản thành công!")
         print(f"   - PUUID: {puuid}")
 
         print("\n3. ĐANG TẢI TRẬN ĐẤU MỚI NHẤT...")
@@ -81,7 +85,7 @@ def test_connection():
         print("   3. Bấm 'REGENERATE API KEY'")
         print("   4. Copy khóa mới và dán vào dòng RIOT_API_KEY trong file .env")
         return False
-    except AccountNotFoundError as e:
+    except AccountNotFoundError:
         print(f"\n[LỖI 404] KHÔNG TÌM THẤY TÀI KHOẢN: {cfg.game_name}#{cfg.tag_line}")
         print("-> Vui lòng kiểm tra lại chính xác Tên và TagLine trong game.")
         return False

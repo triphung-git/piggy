@@ -1,13 +1,20 @@
 """
-backend package for TFT Post-Match Studio — Standalone Edition
+backend package for TFT Post-Match Studio — Backward compatibility shim.
 """
 
-from backend.config import AppConfig, is_configured, load_overlay_config, save_overlay_config
-from backend.data_parser import DDragonLoader, parse_tft_match
-from backend.export_service import export_html_to_png
-from backend.match_service import MatchService
-from backend.overlay_generator import generate_overlay_html
-from backend.riot_client import RiotTFTClient
+from __future__ import annotations
+
+from tft_studio.core.config import (
+    AppConfig,
+    is_configured,
+    load_overlay_config,
+    save_overlay_config,
+)
+from tft_studio.data.parser import DDragonLoader, parse_tft_match
+from tft_studio.render.exporter import export_html_to_png
+from tft_studio.render.generator import generate_overlay_html
+from tft_studio.riot.client import RiotTFTClient
+from tft_studio.service.match_service import MatchService
 
 __all__ = [
     "AppConfig",

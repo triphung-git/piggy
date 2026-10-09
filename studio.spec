@@ -39,6 +39,22 @@ hiddenimports = [
     'dotenv',
     'rich',
     'PIL',
+    'tft_studio',
+    'tft_studio.core',
+    'tft_studio.core.paths',
+    'tft_studio.core.config',
+    'tft_studio.riot',
+    'tft_studio.riot.client',
+    'tft_studio.data',
+    'tft_studio.data.parser',
+    'tft_studio.render',
+    'tft_studio.render.generator',
+    'tft_studio.render.exporter',
+    'tft_studio.service',
+    'tft_studio.service.match_service',
+    'tft_studio.service.file_watcher',
+    'tft_studio.api',
+    'tft_studio.api.hub',
 ]
 
 # Thu thập đầy đủ các submodules của uvicorn
@@ -54,7 +70,7 @@ block_cipher = None
 
 a = Analysis(
     ['desktop/app.py'],
-    pathex=[str(base_dir)],
+    pathex=[str(base_dir), str(base_dir / 'src')],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,

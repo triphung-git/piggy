@@ -43,6 +43,7 @@ ignore = ["E501", "S104", "S105", "S106", "S603", "S607"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S105", "S106", "ARG"]
 "desktop/app.py" = ["E402"]
+"test_riot_connection.py" = ["E402", "T201"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
