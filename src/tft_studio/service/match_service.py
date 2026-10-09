@@ -12,6 +12,7 @@ import logging
 import threading
 import time
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from tft_studio.core.config import REGION_MAPPING, AppConfig
