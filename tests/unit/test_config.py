@@ -93,3 +93,36 @@ def test_is_configured(tmp_path, monkeypatch):
         monkeypatch.setenv("RIOT_API_KEY", "RGAPI-abcdef12-3456-7890-abcd-1234567890ab")
         monkeypatch.setenv("RIOT_ID", "ProPlayer#KR1")
         assert is_configured() is True
+
+
+def test_to_dict_masks_api_key():
+    """K1: to_dict khong duoc de lo api_key."""
+    cfg = AppConfig(
+        api_key="RGAPI-secret-api-key-999",
+        riot_id="Player#VN",
+        game_name="Player",
+        tag_line="VN",
+        region="VN",
+        platform="vn2",
+        account_routing="asia",
+        match_routing="sea",
+    )
+    d = cfg.to_dict()
+    assert d["api_key"] == "RGAPI-****"
+    assert "secret-api-key-999" not in str(d)
+
+
+def test_to_dict_internal_exposes_api_key():
+    """K1: to_dict_internal phuc vu backend van giu day du api_key."""
+    cfg = AppConfig(
+        api_key="RGAPI-secret-api-key-999",
+        riot_id="Player#VN",
+        game_name="Player",
+        tag_line="VN",
+        region="VN",
+        platform="vn2",
+        account_routing="asia",
+        match_routing="sea",
+    )
+    d = cfg.to_dict_internal()
+    assert d["api_key"] == "RGAPI-secret-api-key-999"

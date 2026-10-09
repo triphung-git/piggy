@@ -111,6 +111,14 @@ class AppConfig:
     output_dir: str = "output"
 
     def to_dict(self) -> dict[str, Any]:
+        """Trả về dict an toàn cho frontend — KHÔNG bao giờ expose api_key."""
+        d = asdict(self)
+        if d.get("api_key"):
+            d["api_key"] = "RGAPI-****"
+        return d
+
+    def to_dict_internal(self) -> dict[str, Any]:
+        """Chỉ dùng nội bộ backend — có api_key đầy đủ."""
         return asdict(self)
 
     @classmethod

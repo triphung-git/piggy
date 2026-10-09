@@ -11,6 +11,7 @@ from __future__ import annotations
 import csv
 import json
 import logging
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -528,3 +529,30 @@ def export_clean_matches_to_json(matches: list[dict], output_file: str | Path) -
         json.dump(matches, f, ensure_ascii=False, indent=2)
 
     logger.info("JSON exported: %s", output_path.name)
+
+
+def validate_custom_augment(item: Any, allowlist: Optional[set[str]] = None) -> bool:
+    """Kiểm tra tính an toàn và hợp lệ của một định danh custom augment (K3).
+    Ngăn chặn tuyệt đối path traversal (.., /, \\), ký tự điều khiển, injection.
+    """
+    if item is None:
+        return True
+    if not isinstance(item, str):
+        return False
+    val = item.strip()
+    if not val:
+        return True
+
+    # 1. Chống path traversal và ký tự điều khiển / injection nguy hiểm
+    if any(p in val for p in ("..", "/", "\\", "\x00", "<", ">", '"', "'", "`", "$", "{", "}")):
+        return False
+
+    # 2. Định dạng ký tự an toàn: chỉ cho phép chữ cái, số, gạch dưới, gạch ngang, khoảng trắng, dấu chấm
+    if not re.match(r"^[a-zA-Z0-9_\-. ]{1,128}$", val):
+        return False
+
+    # 3. Đối chiếu allowlist nếu được cung cấp
+    if allowlist is not None and len(allowlist) > 0:
+        return val.lower() in allowlist
+
+    return True

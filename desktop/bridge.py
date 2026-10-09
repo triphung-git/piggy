@@ -483,8 +483,15 @@ class StudioBridge:
                       hoặc None/empty để dùng Auto (lấy từ trận đấu).
         """
         try:
+            from backend.data_parser import validate_custom_augment
+
             normalized: list = []
             for item in (augments or [])[:3]:
+                if item is not None and not validate_custom_augment(item):
+                    return {
+                        "success": False,
+                        "error": f"Định danh lõi nâng cấp không hợp lệ: {item}",
+                    }
                 if isinstance(item, str) and item.strip():
                     normalized.append(item.strip())
                 else:
@@ -604,6 +611,48 @@ class StudioBridge:
         self.notify_frontend("onAppStateUpdate", {"is_polling": is_p})
         return is_p
 
+VALID_AVATAR_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
+MAX_AVATAR_SIZE = 10 * 1024 * 1024  # 10 MB
+
+
+def validate_avatar_file(path: Path | str) -> tuple[bool, str]:
+    """Kiểm tra tính an toàn của file ảnh avatar (K4).
+    Kiểm tra tồn tại, kích thước (<10MB), phần mở rộng hợp lệ, và magic bytes thực tế.
+    """
+    p = Path(path)
+    if not p.is_file():
+        return False, "File không tồn tại hoặc không phải là file thông thường"
+
+    if p.suffix.lower() not in VALID_AVATAR_EXTENSIONS:
+        return False, f"Định dạng file không được hỗ trợ ({p.suffix}). Chỉ chấp nhận .png, .jpg, .jpeg, .webp"
+
+    try:
+        size = p.stat().st_size
+        if size == 0:
+            return False, "File ảnh rỗng (0 bytes)"
+        if size > MAX_AVATAR_SIZE:
+            return False, f"Kích thước file vượt quá giới hạn tối đa 10MB ({size} bytes)"
+
+        with open(p, "rb") as f:
+            header = f.read(16)
+
+        is_valid_magic = any(
+            header.startswith(magic)
+            for magic in (b"\xff\xd8\xff", b"\x89PNG\r\n\x1a\n", b"GIF87a", b"GIF89a")
+        )
+        if not is_valid_magic:
+            # WEBP: RIFF...WEBP
+            if header.startswith(b"RIFF") and len(header) >= 12 and header[8:12] == b"WEBP":
+                is_valid_magic = True
+
+        if not is_valid_magic:
+            return False, "Nội dung file không đúng định dạng ảnh hợp lệ (magic bytes mismatch)"
+
+        return True, ""
+    except Exception as exc:
+        return False, f"Lỗi khi kiểm tra file ảnh: {exc}"
+
+
     def pick_avatar_file(self, player_name: str) -> dict[str, Any]:
         """Mở hộp thoại chọn ảnh avatar cho tuyển thủ."""
         if not self._dashboard_window:
@@ -616,22 +665,26 @@ class StudioBridge:
 
         if result and len(result) > 0:
             chosen_path = Path(result[0])
-            if chosen_path.exists():
-                clean_name = "".join(
-                    c if c.isalnum() else "_" for c in player_name
-                ).lower()
-                dest_file = AVATARS_DIR / f"{clean_name}{chosen_path.suffix}"
-                shutil.copy2(chosen_path, dest_file)
+            is_valid, err_msg = validate_avatar_file(chosen_path)
+            if not is_valid:
+                logger.warning("Avatar validation failed for %s: %s", chosen_path, err_msg)
+                return {"success": False, "error": err_msg}
 
-                rel_path = f"assets/avatars/{dest_file.name}"
-                cfg = load_overlay_config()
-                if "player_avatars" not in cfg:
-                    cfg["player_avatars"] = {}
-                cfg["player_avatars"][player_name] = rel_path
-                save_overlay_config(cfg)
+            clean_name = "".join(
+                c if c.isalnum() else "_" for c in player_name
+            ).lower()
+            dest_file = AVATARS_DIR / f"{clean_name}{chosen_path.suffix.lower()}"
+            shutil.copy2(chosen_path, dest_file)
 
-                self.notify_frontend("onAppStateUpdate", {"overlay_config": cfg})
-                return {"success": True, "path": rel_path}
+            rel_path = f"assets/avatars/{dest_file.name}"
+            cfg = load_overlay_config()
+            if "player_avatars" not in cfg:
+                cfg["player_avatars"] = {}
+            cfg["player_avatars"][player_name] = rel_path
+            save_overlay_config(cfg)
+
+            self.notify_frontend("onAppStateUpdate", {"overlay_config": cfg})
+            return {"success": True, "path": rel_path}
 
         return {"success": False, "canceled": True}
 

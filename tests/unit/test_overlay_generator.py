@@ -82,3 +82,30 @@ def test_load_overlay_config_fallback(tmp_path):
     cfg = load_overlay_config(non_existent)
     assert "tournament_title" in cfg
     assert cfg["server_port"] == 8080
+
+
+def test_xss_payload_is_escaped_in_overlay(tmp_path):
+    """K2: payload doc hai trong ten nguoi choi hoac giai dau phai bi escape."""
+    clean_path = FIXTURES_DIR / "match_1_clean.json"
+    with open(clean_path, "r", encoding="utf-8") as f:
+        match_data = json.load(f)
+
+    # Them payload XSS vao ten nguoi choi top 1 va nguoi choi top 2
+    match_data["lobby"][0]["game_name"] = '<script>alert("top1_xss")</script>'
+    match_data["lobby"][1]["game_name"] = '<img src=x onerror="alert(2)">'
+
+    cfg = {
+        "tournament_title": "<marquee>HACKED TOURNAMENT</marquee>",
+        "stage_title": '"><script>alert(3)</script>',
+        "server_port": 8080,
+    }
+    out_file = tmp_path / "xss_test_overlay.html"
+    generate_overlay_html(match_data, cfg, out_file)
+
+    content = out_file.read_text(encoding="utf-8")
+    assert '<script>alert("top1_xss")</script>' not in content
+    assert '<img src=x onerror=' not in content
+    assert '<marquee>' not in content
+    assert '&lt;script&gt;alert(' in content
+    assert '&lt;img src=x onerror=' in content
+    assert '&lt;marquee&gt;' in content

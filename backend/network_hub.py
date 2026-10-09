@@ -329,9 +329,16 @@ async def save_custom_augments(request: Request):
             status_code=400,
         )
 
-    # Chuẩn hóa: giữ tối đa 3, phần tử empty string -> None
+    from backend.data_parser import validate_custom_augment
+
+    # Chuẩn hóa & kiểm tra an toàn (K3: Chống path traversal)
     normalized: list = []
     for item in raw_augments[:3]:
+        if item is not None and not validate_custom_augment(item):
+            return JSONResponse(
+                {"success": False, "error": f"Invalid augment identifier: {item}"},
+                status_code=400,
+            )
         if isinstance(item, str) and item.strip():
             normalized.append(item.strip())
         else:

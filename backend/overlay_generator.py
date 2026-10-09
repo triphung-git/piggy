@@ -8,6 +8,7 @@ Dựa trên phong cách thiết kế giải đấu Esports HOSC 2026.
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import logging
 import os
@@ -264,12 +265,13 @@ def build_augments_html(augments_detailed: list[dict], config: Optional[dict] = 
             continue
         img_name = aug.get("image") or ""
         name = aug.get("name") or "Augment"
+        safe_name = html.escape(str(name), quote=True)
         if img_name and img_name in aug_set:
             img_path = f"../TFT_DDragon/img/augment/{img_name}"
-            slot_html = f'<div class="augment-slot" title="{name}"><img src="{img_path}" alt="{name}"></div>'
+            slot_html = f'<div class="augment-slot" title="{safe_name}"><img src="{img_path}" alt="{safe_name}"></div>'
         else:
             # Fallback thanh lịch nếu không tìm thấy file ảnh (không bao giờ sinh thẻ img lỗi [x])
-            slot_html = f'<div class="augment-slot empty-slot" title="{name}"><span style="font-size:10px;text-align:center;padding:4px;color:#caa867;line-height:1.2;font-weight:700;">{name}</span></div>'
+            slot_html = f'<div class="augment-slot empty-slot" title="{safe_name}"><span style="font-size:10px;text-align:center;padding:4px;color:#caa867;line-height:1.2;font-weight:700;">{safe_name}</span></div>'
         slots.append(slot_html)
 
     # Đảm bảo luôn có đủ 3 ô lõi
@@ -289,6 +291,7 @@ def build_units_html(units: list[dict]) -> str:
         tier = max(1, min(4, u.get("tier", 1)))
         cost = u.get("cost", 1)
         name = u.get("name", "Champion")
+        safe_name = html.escape(str(name), quote=True)
         char_img = u.get("image", "")
         img_url = f"../TFT_DDragon/img/champion/{char_img}" if (char_img and char_img in champ_set) else ""
 
@@ -302,13 +305,14 @@ def build_units_html(units: list[dict]) -> str:
         for item in raw_items[:3]:
             iimg = item.get("image", "")
             iname = item.get("name", "Trang bị")
+            safe_iname = html.escape(str(iname), quote=True)
             if iimg and iimg in item_set:
                 items_html.append(
-                    f'<div class="item-slot" title="{iname}"><img src="../TFT_DDragon/img/item/{iimg}" alt="{iname}"></div>'
+                    f'<div class="item-slot" title="{safe_iname}"><img src="../TFT_DDragon/img/item/{iimg}" alt="{safe_iname}"></div>'
                 )
         items_row_content = "".join(items_html)
 
-        champ_content = f'<img src="{img_url}" alt="{name}">' if img_url else f'<span style="font-size:10px;color:#caa867;display:flex;align-items:center;justify-content:center;height:100%;">{name[:4]}</span>'
+        champ_content = f'<img src="{img_url}" alt="{safe_name}">' if img_url else f'<span style="font-size:10px;color:#caa867;display:flex;align-items:center;justify-content:center;height:100%;">{html.escape(str(name)[:4])}</span>'
 
         card = f"""
         <div class="unit-card">
@@ -347,13 +351,14 @@ def build_lobby_standings_html(lobby: list[dict]) -> str:
         place = p.get("placement", 2)
         rank_text = rank_suffixes.get(place, f"{place}TH")
         display_name = p.get("game_name") or p.get("display_name") or p.get("player_name", "").split("#")[0]
+        safe_display_name = html.escape(str(display_name))
         points = p.get("esports_points", max(1, 9 - place))
 
         row_html = f"""
         <div class="standing-row">
           <div class="standing-rank">{rank_text}</div>
           <div class="standing-name-box">
-            <span class="standing-name">{display_name}</span>
+            <span class="standing-name">{safe_display_name}</span>
           </div>
           <div class="standing-pts">
             <span class="pts-num">{points}</span>
@@ -412,12 +417,12 @@ def generate_overlay_html(
     html_template = _get_html_template()
 
     # 4. Thay thế biến
-    rendered = html_template.replace("{{ GAME_TITLE }}", config.get("game_title", "TEAMFIGHT TACTICS"))
-    rendered = rendered.replace("{{ TOURNAMENT_TITLE }}", config.get("tournament_title", "HOSC 2026 | TEAMFIGHT TACTICS"))
-    rendered = rendered.replace("{{ STAGE_TITLE }}", config.get("stage_title", "LAST CHANCE QUALIFIER"))
-    rendered = rendered.replace("{{ TOP1_NAME }}", top1_display_name)
-    rendered = rendered.replace("{{ TOP1_AVATAR_URL }}", avatar_url)
-    rendered = rendered.replace("{{ TOP1_BOARD_VALUE }}", str(top1_board_value))
+    rendered = html_template.replace("{{ GAME_TITLE }}", html.escape(str(config.get("game_title", "TEAMFIGHT TACTICS"))))
+    rendered = rendered.replace("{{ TOURNAMENT_TITLE }}", html.escape(str(config.get("tournament_title", "HOSC 2026 | TEAMFIGHT TACTICS"))))
+    rendered = rendered.replace("{{ STAGE_TITLE }}", html.escape(str(config.get("stage_title", "LAST CHANCE QUALIFIER"))))
+    rendered = rendered.replace("{{ TOP1_NAME }}", html.escape(str(top1_display_name)))
+    rendered = rendered.replace("{{ TOP1_AVATAR_URL }}", html.escape(str(avatar_url), quote=True))
+    rendered = rendered.replace("{{ TOP1_BOARD_VALUE }}", html.escape(str(top1_board_value)))
     rendered = rendered.replace("{{ TOP1_AUGMENTS_HTML }}", augments_html)
     rendered = rendered.replace("{{ TOP1_UNITS_HTML }}", units_html)
     rendered = rendered.replace("{{ LOBBY_STANDINGS_HTML }}", standings_html)
