@@ -4,10 +4,8 @@ backend/paths.py
 Backward compatibility shim. Toàn bộ logic đã chuyển sang tft_studio.core.paths.
 """
 
-from tft_studio.core.paths import (
-    get_app_dir,
-    get_bundle_dir,
-    resolve_resource,
-)
+import sys
+import tft_studio.core.paths as _core_paths
 
-__all__ = ["get_app_dir", "get_bundle_dir", "resolve_resource"]
+# Biến backend.paths thành alias trực tiếp của tft_studio.core.paths
+sys.modules[__name__] = _core_paths
