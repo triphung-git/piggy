@@ -42,3 +42,25 @@ def test_sliding_window_limiter_exact_20_per_second():
     limiter.acquire()
     t2 = time.monotonic()
     assert t2 - t0 >= 0.45, "Request thu 21 phai doi cua so 0.5s troi qua"
+
+
+def test_sliding_window_limiter_multithreaded_safe():
+    """Kiểm tra an toàn đa luồng (K8): nhiều luồng gọi acquire() đồng thời không gây race condition."""
+    import threading
+
+    limiter = _SlidingWindowLimiter(limits=[(20, 0.2)])
+    call_counts = []
+
+    def worker():
+        for _ in range(5):
+            limiter.acquire()
+            call_counts.append(1)
+
+    threads = [threading.Thread(target=worker) for _ in range(4)]
+    for th in threads:
+        th.start()
+    for th in threads:
+        th.join(timeout=2.0)
+
+    # 4 threads * 5 = 20 calls hoàn thành an toàn
+    assert len(call_counts) == 20

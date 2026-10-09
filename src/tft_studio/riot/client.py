@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 import time
 import urllib.parse
 from collections import deque
@@ -57,31 +58,33 @@ class AccountNotFoundError(RiotAPIError):
 class _SlidingWindowLimiter:
     limits: list[tuple[int, float]]  # [(max_calls, window_seconds), ...]
     _hits: dict[float, deque] = field(default_factory=dict)
+    _lock: threading.Lock = field(default_factory=threading.Lock)
 
     def __post_init__(self) -> None:
         for _, window in self.limits:
             self._hits[window] = deque()
 
     def acquire(self) -> None:
-        """Chặn (sleep) nếu gọi ngay bây giờ sẽ vượt quá bất kỳ giới hạn nào."""
-        now = time.monotonic()
-        wait_time = 0.0
-
-        for max_calls, window in self.limits:
-            dq = self._hits[window]
-            while dq and now - dq[0] > window:
-                dq.popleft()
-            if len(dq) >= max_calls:
-                wait_needed = window - (now - dq[0])
-                wait_time = max(wait_time, wait_needed)
-
-        if wait_time > 0:
-            logger.debug("Rate limiter: chờ %.2fs trước khi gọi tiếp", wait_time)
-            time.sleep(wait_time)
+        """Chặn (sleep) nếu gọi ngay bây giờ sẽ vượt quá bất kỳ giới hạn nào (Thread-safe)."""
+        with self._lock:
             now = time.monotonic()
+            wait_time = 0.0
 
-        for _, window in self.limits:
-            self._hits[window].append(now)
+            for max_calls, window in self.limits:
+                dq = self._hits[window]
+                while dq and now - dq[0] > window:
+                    dq.popleft()
+                if len(dq) >= max_calls:
+                    wait_needed = window - (now - dq[0])
+                    wait_time = max(wait_time, wait_needed)
+
+            if wait_time > 0:
+                logger.debug("Rate limiter: chờ %.2fs trước khi gọi tiếp", wait_time)
+                time.sleep(wait_time)
+                now = time.monotonic()
+
+            for _, window in self.limits:
+                self._hits[window].append(now)
 
 
 class RiotTFTClient:

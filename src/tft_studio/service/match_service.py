@@ -25,6 +25,32 @@ BASE_DIR = get_app_dir()
 OUTPUT_DIR = BASE_DIR / "output"
 
 
+def cleanup_cache_files(output_dir: Path, max_files: int = 20) -> int:
+    """Xóa bớt các file cache clean_matches_*.json cũ (K9), giữ lại tối đa max_files file mới nhất.
+    File clean_matches_latest.json luôn được bảo toàn.
+    """
+    if not output_dir.exists():
+        return 0
+
+    candidates = [
+        f for f in output_dir.glob("clean_matches_*.json")
+        if f.name != "clean_matches_latest.json" and f.is_file()
+    ]
+    if len(candidates) <= max_files:
+        return 0
+
+    candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    to_delete = candidates[max_files:]
+    deleted = 0
+    for p in to_delete:
+        try:
+            p.unlink()
+            deleted += 1
+        except Exception as e:
+            logger.debug("Failed to remove old cache file %s: %s", p.name, e)
+    return deleted
+
+
 class MatchService:
     """Quản lý dữ liệu trận đấu TFT và chế độ Auto-Polling ngầm."""
 
@@ -36,6 +62,10 @@ class MatchService:
         self.active_puuid: str | None = None
         self.last_seen_match_id: str | None = None
 
+        # Tái sử dụng Client để chia sẻ Rate Limiter (K8)
+        self._cached_client: RiotTFTClient | None = None
+        self._cached_client_key: tuple[str, str, str] | None = None
+
         # Quản lý Polling Thread
         self._polling_thread: threading.Thread | None = None
         self._polling_stop_event = threading.Event()
@@ -43,12 +73,30 @@ class MatchService:
         self._is_polling: bool = False
         self._on_new_match_callback: Callable[[dict[str, Any]], None] | None = None
 
+    def get_client(
+        self,
+        account_routing: str | None = None,
+        match_routing: str | None = None,
+        timeout: float = 6.0,
+        max_retries: int = 2,
+    ) -> RiotTFTClient:
+        """Tái sử dụng client để chia sẻ sliding window rate limiter (K8)."""
+        act_routing = account_routing or self.config.account_routing
+        mtc_routing = match_routing or self.config.match_routing
+        key = (self.config.api_key, act_routing, mtc_routing)
+        if self._cached_client is None or self._cached_client_key != key:
+            self._cached_client = RiotTFTClient(
+                api_key=self.config.api_key,
+                account_routing=act_routing,
+                match_routing=mtc_routing,
+                timeout=timeout,
+                max_retries=max_retries,
+            )
+            self._cached_client_key = key
+        return self._cached_client
+
     def _create_client(self) -> RiotTFTClient:
-        return RiotTFTClient(
-            api_key=self.config.api_key,
-            account_routing=self.config.account_routing,
-            match_routing=self.config.match_routing,
-        )
+        return self.get_client()
 
     def resolve_puuid(self, game_name: str, tag_line: str, region: str) -> str:
         """Lấy PUUID của người chơi từ Riot ID."""
@@ -56,8 +104,7 @@ class MatchService:
         account_routing = mapping.get("account", "asia")
         match_routing = mapping.get("match", "sea")
 
-        client = RiotTFTClient(
-            api_key=self.config.api_key,
+        client = self.get_client(
             account_routing=account_routing,
             match_routing=match_routing,
         )
@@ -84,8 +131,7 @@ class MatchService:
         account_routing = mapping.get("account", "asia")
         match_routing = mapping.get("match", "sea")
 
-        client = RiotTFTClient(
-            api_key=self.config.api_key,
+        client = self.get_client(
             account_routing=account_routing,
             match_routing=match_routing,
             timeout=6.0,
@@ -133,6 +179,7 @@ class MatchService:
             try:
                 with open(cache_file, "w", encoding="utf-8") as f:
                     json.dump(parsed_list, f, ensure_ascii=False, indent=2)
+                cleanup_cache_files(OUTPUT_DIR, max_files=20)
             except Exception as e:
                 logger.warning("Failed to save match cache: %s", e)
 
