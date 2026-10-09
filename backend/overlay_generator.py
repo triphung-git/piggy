@@ -7,23 +7,22 @@ Dựa trên phong cách thiết kế giải đấu Esports HOSC 2026.
 
 from __future__ import annotations
 
-import argparse
+import contextlib
 import html
 import json
 import logging
-import os
 import shutil
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
+
+from backend.paths import get_app_dir, get_bundle_dir, resolve_resource
 
 # Đảm bảo terminal Windows in UTF-8
 if sys.platform == "win32":
-    try:
+    with contextlib.suppress(Exception):
         sys.stdout.reconfigure(encoding="utf-8")
         sys.stderr.reconfigure(encoding="utf-8")
-    except Exception:
-        pass
 
 logging.basicConfig(
     level=logging.INFO,
@@ -31,8 +30,6 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger("overlay_generator")
-
-from backend.paths import get_app_dir, get_bundle_dir, resolve_resource
 
 BASE_DIR = get_app_dir()
 BUNDLE_DIR = get_bundle_dir()
@@ -58,7 +55,7 @@ def load_overlay_config(config_path: Path) -> dict:
     }
     if config_path.exists():
         try:
-            with open(config_path, "r", encoding="utf-8") as f:
+            with open(config_path, encoding="utf-8") as f:
                 loaded = json.load(f)
                 default_config.update(loaded)
         except Exception as exc:
@@ -95,10 +92,11 @@ def find_avatar_url(player_name: str, display_name: str, companion_img: str, con
 
     # Kiểm tra map cấu hình
     for key in (player_name, display_name, player_name.split("#")[0]):
-        if key in avatars_map and avatars_map[key]:
+        if avatars_map.get(key):
             avatar_path = BASE_DIR / avatars_map[key]
             if avatar_path.exists():
-                return f"../{avatars_map[key].replace('\\', '/')}"
+                rel_clean = avatars_map[key].replace("\\", "/")
+                return f"../{rel_clean}"
 
     # Kiểm tra thư mục assets/avatars/
     avatars_folder = ASSETS_DIR / "avatars"
@@ -170,10 +168,8 @@ def resolve_custom_augment(item: Any, config: dict) -> dict:
         lang = config.get("language", "vi_VN")
         loaders = [get_ddragon_loader(lang)]
         if lang != "en_US":
-            try:
+            with contextlib.suppress(Exception):
                 loaders.append(get_ddragon_loader("en_US"))
-            except Exception:
-                pass
 
         # 3. Tìm theo ID hoặc Tên trong từ điển Data Dragon (tiếng Việt và tiếng Anh)
         for loader in loaders:
@@ -230,7 +226,7 @@ def resolve_custom_augment(item: Any, config: dict) -> dict:
     return {"name": "Augment", "image": ""}
 
 
-def build_augments_html(augments_detailed: list[dict], config: Optional[dict] = None) -> str:
+def build_augments_html(augments_detailed: list[dict], config: dict | None = None) -> str:
     """Tạo HTML cho 3 lõi nâng cấp với hỗ trợ slot None (Auto từ trận đấu).
 
     Logic ưu tiên theo từng slot:
@@ -246,7 +242,7 @@ def build_augments_html(augments_detailed: list[dict], config: Optional[dict] = 
     auto_source = list(augments_detailed[:3]) if augments_detailed else []
 
     # Xây dựng danh sách 3 slot
-    items_to_render: list[Optional[dict]] = []
+    items_to_render: list[dict | None] = []
     if custom and isinstance(custom, list):
         for i, item in enumerate(custom[:3]):
             if item is None or (isinstance(item, str) and not item.strip()):
@@ -381,7 +377,7 @@ def _get_html_template() -> str:
     try:
         current_mtime = DEFAULT_TEMPLATE_FILE.stat().st_mtime
         if not _TEMPLATE_CACHE or current_mtime != _TEMPLATE_MTIME:
-            with open(DEFAULT_TEMPLATE_FILE, "r", encoding="utf-8") as f:
+            with open(DEFAULT_TEMPLATE_FILE, encoding="utf-8") as f:
                 _TEMPLATE_CACHE = f.read()
             _TEMPLATE_MTIME = current_mtime
     except Exception as exc:

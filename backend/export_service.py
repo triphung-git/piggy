@@ -13,15 +13,15 @@ import shutil
 import subprocess
 from pathlib import Path
 
-logger = logging.getLogger("export_service")
-
 from backend.paths import get_app_dir
+
+logger = logging.getLogger("export_service")
 
 BASE_DIR = get_app_dir()
 OUTPUT_DIR = BASE_DIR / "output"
 
 
-def find_browser_executable() -> Optional[str]:
+def find_browser_executable() -> str | None:
     """Tìm đường dẫn trình duyệt Chrome hoặc Edge có sẵn trên Windows."""
     for name in ("chrome.exe", "msedge.exe", "chromium.exe"):
         found = shutil.which(name)

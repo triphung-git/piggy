@@ -30,11 +30,10 @@ import json
 import logging
 import os
 import time
+import urllib.parse
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Optional
-
-import urllib.parse
+from typing import Any
 
 import requests
 
@@ -106,7 +105,7 @@ class RiotTFTClient:
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
         match_routing: str = "sea",
         account_routing: str = "sea",
         platform: str = "VN2",
@@ -114,7 +113,7 @@ class RiotTFTClient:
         max_retries: int = 5,
         # Giới hạn mặc định theo Development API Key. Khi có Production Key,
         # chỉ cần đổi 2 số này khi khởi tạo client, không sửa logic.
-        rate_limits: Optional[list[tuple[int, float]]] = None,
+        rate_limits: list[tuple[int, float]] | None = None,
     ) -> None:
         self.api_key = api_key or os.environ.get("RIOT_API_KEY")
         if not self.api_key:
@@ -139,7 +138,7 @@ class RiotTFTClient:
     # Internal request wrapper — MỌI lệnh gọi API đều đi qua đây
     # ------------------------------------------------------------------ #
     def _request(self, url: str, *, not_found_exc: type[RiotAPIError] = RiotAPIError) -> Any:
-        last_error: Optional[Exception] = None
+        last_error: Exception | None = None
 
         for attempt in range(1, self.max_retries + 1):
             self._limiter.acquire()  # tự chờ trước nếu sắp vượt giới hạn
@@ -199,9 +198,11 @@ class RiotTFTClient:
 
             if resp.status_code in (401, 403):
                 raise AuthenticationError(
-                    f"Lỗi xác thực Riot API ({resp.status_code}): API Key không hợp lệ hoặc đã hết hạn!\n"
-                    f"Lưu ý: Riot Development API Key chỉ có hiệu lực trong vòng 24 giờ.\n"
-                    f"👉 Vui lòng truy cập https://developer.riotgames.com để 'Regenerate API Key' và dán vào file .env"
+                    f"Lỗi xác thực Riot API ({resp.status_code}): "
+                    "API Key không hợp lệ hoặc đã hết hạn!\n"
+                    "Lưu ý: Riot Development API Key chỉ có hiệu lực trong vòng 24 giờ.\n"
+                    "👉 Vui lòng truy cập https://developer.riotgames.com để 'Regenerate API Key' "
+                    "và dán vào file .env"
                 )
 
             # Lỗi khác (400, v.v.) — không retry
@@ -250,7 +251,7 @@ class RiotTFTClient:
 # -> lưu ra file. Đây là hàm chạy khi thực thi file này trực tiếp.
 # --------------------------------------------------------------------------- #
 def fetch_and_save_complete_data(
-    client: "RiotTFTClient",
+    client: RiotTFTClient,
     game_name: str,
     tag_line: str,
     match_count: int = 5,
@@ -331,7 +332,10 @@ if __name__ == "__main__":
     )
 
     if len(sys.argv) < 3:
-        print('Cách dùng: python riot_client.py "GameName" "TagLine" [số_match=5] [thư_mục_lưu=raw_matches]')
+        print(
+            'Cách dùng: python riot_client.py "GameName" "TagLine" '
+            '[số_match=5] [thư_mục_lưu=raw_matches]'
+        )
         sys.exit(1)
 
     game_name = sys.argv[1]

@@ -1,7 +1,8 @@
 """
 tests/unit/test_match_service.py
 --------------------------------
-Characterization tests cho MatchService: init, set_active_match, resolve_puuid, fetch_recent_matches.
+Characterization tests cho MatchService:
+init, set_active_match, resolve_puuid, fetch_recent_matches.
 """
 
 import json
@@ -70,7 +71,7 @@ def test_match_service_fetch_recent_matches(tmp_path):
     service = MatchService(config=cfg)
 
     raw_path = Path("tests/fixtures/match_1_raw.json")
-    with open(raw_path, "r", encoding="utf-8") as f:
+    with open(raw_path, encoding="utf-8") as f:
         raw_match = json.load(f)
 
     with (

@@ -8,11 +8,12 @@ Hỗ trợ nạp và lưu động từ file .env và overlay_config.json.
 from __future__ import annotations
 
 import json
+import logging
 import os
-import re
 from dataclasses import asdict, dataclass
-from pathlib import Path
-from typing import Any, Optional
+from typing import Any
+
+from backend.paths import get_app_dir, get_bundle_dir
 
 try:
     from dotenv import load_dotenv
@@ -20,7 +21,7 @@ try:
 except ImportError:
     _HAS_DOTENV = False
 
-from backend.paths import get_app_dir, get_bundle_dir, resolve_resource
+logger = logging.getLogger("config")
 
 BASE_DIR = get_app_dir()
 BUNDLE_DIR = get_bundle_dir()
@@ -34,7 +35,7 @@ def reload_env() -> None:
         load_dotenv(dotenv_path=ENV_PATH, override=True)
     else:
         if ENV_PATH.exists():
-            with open(ENV_PATH, "r", encoding="utf-8") as f:
+            with open(ENV_PATH, encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
                     if not line or line.startswith("#"):
@@ -164,7 +165,7 @@ class AppConfig:
         """Lưu các giá trị cập nhật vào file .env."""
         current_lines: list[str] = []
         if ENV_PATH.exists():
-            with open(ENV_PATH, "r", encoding="utf-8") as f:
+            with open(ENV_PATH, encoding="utf-8") as f:
                 current_lines = f.readlines()
 
         key_map = {
@@ -218,11 +219,11 @@ def load_overlay_config() -> dict[str, Any]:
 
     if OVERLAY_CONFIG_PATH.exists():
         try:
-            with open(OVERLAY_CONFIG_PATH, "r", encoding="utf-8") as f:
+            with open(OVERLAY_CONFIG_PATH, encoding="utf-8") as f:
                 loaded = json.load(f)
                 default_config.update(loaded)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Không thể đọc overlay_config.json: %s", exc)
 
     return default_config
 

@@ -26,7 +26,7 @@ def _normalize_html(text: str) -> str:
 def test_generate_overlay_html_matches_golden(tmp_path):
     """Kiem tra overlay HTML sinh ra phai khop 100% voi golden master."""
     clean_path = FIXTURES_DIR / "match_1_clean.json"
-    with open(clean_path, "r", encoding="utf-8") as f:
+    with open(clean_path, encoding="utf-8") as f:
         match_data = json.load(f)
 
     cfg = load_overlay_config(Path("overlay_config.json"))
@@ -47,7 +47,7 @@ def test_generate_overlay_html_matches_golden(tmp_path):
 def test_generate_overlay_html_contains_critical_sections(tmp_path):
     """Kiem tra cac thanh phan thiet yeu cua broadcast layout co day du."""
     clean_path = FIXTURES_DIR / "match_1_clean.json"
-    with open(clean_path, "r", encoding="utf-8") as f:
+    with open(clean_path, encoding="utf-8") as f:
         match_data = json.load(f)
 
     cfg = load_overlay_config(Path("overlay_config.json"))
@@ -87,7 +87,7 @@ def test_load_overlay_config_fallback(tmp_path):
 def test_xss_payload_is_escaped_in_overlay(tmp_path):
     """K2: payload doc hai trong ten nguoi choi hoac giai dau phai bi escape."""
     clean_path = FIXTURES_DIR / "match_1_clean.json"
-    with open(clean_path, "r", encoding="utf-8") as f:
+    with open(clean_path, encoding="utf-8") as f:
         match_data = json.load(f)
 
     # Them payload XSS vao ten nguoi choi top 1 va nguoi choi top 2

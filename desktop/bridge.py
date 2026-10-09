@@ -13,19 +13,21 @@ import json
 import logging
 import shutil
 import threading
+import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import webview
 
-import time
 from backend.config import AppConfig, load_overlay_config, save_overlay_config
 from backend.export_service import export_html_to_png
 from backend.file_watcher import ConfigWatcher
 from backend.match_service import MatchService
-from backend.network_hub import notify_sync, is_server_running, set_bridge_reference
+from backend.network_hub import is_server_running, notify_sync, set_bridge_reference
 from backend.overlay_generator import (
     generate_overlay_html,
+)
+from backend.overlay_generator import (
     load_overlay_config as load_generator_config,
 )
 from backend.paths import get_app_dir, resolve_resource
@@ -45,8 +47,8 @@ class StudioBridge:
 
     def __init__(self, match_service: MatchService) -> None:
         self._match_service = match_service
-        self._dashboard_window: Optional[webview.Window] = None
-        self._overlay_window: Optional[webview.Window] = None
+        self._dashboard_window: webview.Window | None = None
+        self._overlay_window: webview.Window | None = None
         self._is_overlay_visible: bool = False
 
         # Khởi tạo thư mục avatars và output nếu chưa có
@@ -63,7 +65,7 @@ class StudioBridge:
         self._setup_file_watcher()
 
     def set_windows(
-        self, dashboard: webview.Window, overlay: Optional[webview.Window] = None
+        self, dashboard: webview.Window, overlay: webview.Window | None = None
     ) -> None:
         self._dashboard_window = dashboard
         self._overlay_window = overlay
@@ -122,7 +124,9 @@ class StudioBridge:
                                 "cached_matches": self._match_service.cached_matches,
                                 "fetch_status": {
                                     "success": True,
-                                    "message": f"Đã nạp trận mới nhất của {cfg.game_name}#{cfg.tag_line}",
+                                    "message": (
+                                        f"Đã nạp trận mới nhất của {cfg.game_name}#{cfg.tag_line}"
+                                    ),
                                     "timestamp": time.time(),
                                 },
                             },
@@ -184,7 +188,7 @@ class StudioBridge:
     # ----------------------------------------------------------------- #
     # Core: Biên dịch Overlay & Thông báo cập nhật
     # ----------------------------------------------------------------- #
-    def _get_best_match_data(self) -> Optional[dict[str, Any]]:
+    def _get_best_match_data(self) -> dict[str, Any] | None:
         """Lấy dữ liệu trận tốt nhất hiện có (memory cache → file cache)."""
         if self._match_service.active_match:
             return self._match_service.active_match
@@ -194,7 +198,8 @@ class StudioBridge:
             return self._match_service.active_match
 
         # Tìm file cache tự động — không hardcode tên người dùng
-        candidates = list(OUTPUT_DIR.glob("clean_matches_*.json")) + [
+        candidates = [
+            *OUTPUT_DIR.glob("clean_matches_*.json"),
             OUTPUT_DIR / "clean_matches_latest.json",
             resolve_resource("output/clean_matches_latest.json"),
         ]
@@ -205,7 +210,7 @@ class StudioBridge:
         ):
             if cand.exists():
                 try:
-                    with open(cand, "r", encoding="utf-8") as f:
+                    with open(cand, encoding="utf-8") as f:
                         cand_list = json.load(f)
                         if cand_list:
                             # Ưu tiên trận có người đứng top 1
@@ -276,8 +281,8 @@ class StudioBridge:
                     )
                     self._overlay_window.show()
                     self._is_overlay_visible = True
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Could not show overlay window: %s", exc)
 
         # 4. Thông báo WS cục bộ → OBS Browser Source tự fetch & DOM-swap
         notify_sync(
@@ -298,7 +303,7 @@ class StudioBridge:
         }
 
     def render_overlay(
-        self, transform: Optional[dict[str, Any]] = None
+        self, transform: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         """
         Xử lý nút 'Render':
@@ -395,7 +400,7 @@ class StudioBridge:
             )
             if cache_files:
                 try:
-                    with open(cache_files[0], "r", encoding="utf-8") as f:
+                    with open(cache_files[0], encoding="utf-8") as f:
                         cached = json.load(f)
                         self._match_service.cached_matches = cached
                         if cached and not self._match_service.active_match:
@@ -446,7 +451,7 @@ class StudioBridge:
             return {"success": False, "error": str(e)}
 
     def update_overlay_transform(
-        self, transform_data: Optional[dict[str, Any]] = None
+        self, transform_data: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         """Cập nhật transform cho Overlay (đã loại bỏ)."""
         return {"success": True}
@@ -543,7 +548,7 @@ class StudioBridge:
             logger.error("Failed to fetch matches: %s", exc)
             raise exc
 
-    def set_active_match(self, match_id: str) -> Optional[dict[str, Any]]:
+    def set_active_match(self, match_id: str) -> dict[str, Any] | None:
         """Chọn trận đấu muốn hiển thị trên Overlay."""
         active = self._match_service.set_active_match_by_id(match_id)
         if active:
@@ -624,7 +629,10 @@ def validate_avatar_file(path: Path | str) -> tuple[bool, str]:
         return False, "File không tồn tại hoặc không phải là file thông thường"
 
     if p.suffix.lower() not in VALID_AVATAR_EXTENSIONS:
-        return False, f"Định dạng file không được hỗ trợ ({p.suffix}). Chỉ chấp nhận .png, .jpg, .jpeg, .webp"
+        return False, (
+            f"Định dạng file không được hỗ trợ ({p.suffix}). "
+            "Chỉ chấp nhận .png, .jpg, .jpeg, .webp"
+        )
 
     try:
         size = p.stat().st_size
@@ -640,10 +648,9 @@ def validate_avatar_file(path: Path | str) -> tuple[bool, str]:
             header.startswith(magic)
             for magic in (b"\xff\xd8\xff", b"\x89PNG\r\n\x1a\n", b"GIF87a", b"GIF89a")
         )
-        if not is_valid_magic:
-            # WEBP: RIFF...WEBP
-            if header.startswith(b"RIFF") and len(header) >= 12 and header[8:12] == b"WEBP":
-                is_valid_magic = True
+        is_webp = header.startswith(b"RIFF") and len(header) >= 12 and header[8:12] == b"WEBP"
+        if not is_valid_magic and is_webp:
+            is_valid_magic = True
 
         if not is_valid_magic:
             return False, "Nội dung file không đúng định dạng ảnh hợp lệ (magic bytes mismatch)"
@@ -775,7 +782,9 @@ def validate_avatar_file(path: Path | str) -> tuple[bool, str]:
                         "cached_matches": self._match_service.cached_matches,
                         "fetch_status": {
                             "success": True,
-                            "message": f"Đã tải thành công trận mới của {cfg.game_name}#{cfg.tag_line}",
+                            "message": (
+                                f"Đã tải thành công trận mới của {cfg.game_name}#{cfg.tag_line}"
+                            ),
                             "timestamp": time.time(),
                         },
                     },

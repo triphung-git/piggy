@@ -14,11 +14,9 @@ from __future__ import annotations
 
 import http.server
 import logging
-import mimetypes
 import socketserver
 import threading
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger("local_server")
 
@@ -77,11 +75,11 @@ class LocalServerManager:
 
     def __init__(self, port: int = 8080) -> None:
         self.port = port
-        self._server: Optional[socketserver.TCPServer] = None
-        self._thread: Optional[threading.Thread] = None
+        self._server: socketserver.TCPServer | None = None
+        self._thread: threading.Thread | None = None
         self._is_running = False
 
-    def start(self, port: Optional[int] = None) -> bool:
+    def start(self, port: int | None = None) -> bool:
         if self._is_running:
             return True
 

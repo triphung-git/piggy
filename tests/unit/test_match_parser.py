@@ -24,7 +24,7 @@ def test_ddragon_loader_loads_successfully():
 def test_parse_tft_match_fixture_1():
     """Kiem tra parse_tft_match voi fixture 1 da an danh."""
     raw_path = FIXTURES_DIR / "match_1_raw.json"
-    with open(raw_path, "r", encoding="utf-8") as f:
+    with open(raw_path, encoding="utf-8") as f:
         raw_match = json.load(f)
 
     clean = parse_tft_match(raw_match, target_puuid="fake-puuid-001", language="vi_VN")
@@ -49,7 +49,7 @@ def test_parse_tft_match_fixture_1():
 def test_parse_tft_match_fixture_2():
     """Kiem tra parse_tft_match voi fixture 2."""
     raw_path = FIXTURES_DIR / "match_2_raw.json"
-    with open(raw_path, "r", encoding="utf-8") as f:
+    with open(raw_path, encoding="utf-8") as f:
         raw_match = json.load(f)
 
     clean = parse_tft_match(raw_match, target_puuid="fake-puuid-003", language="vi_VN")
@@ -64,7 +64,7 @@ def test_parse_tft_match_fixture_2():
 def test_parse_tft_match_without_target_puuid():
     """Kiem tra fallback khi khong truyen target_puuid (chon nguoi dau tien)."""
     raw_path = FIXTURES_DIR / "match_1_raw.json"
-    with open(raw_path, "r", encoding="utf-8") as f:
+    with open(raw_path, encoding="utf-8") as f:
         raw_match = json.load(f)
 
     clean = parse_tft_match(raw_match, target_puuid=None, language="vi_VN")
@@ -79,7 +79,7 @@ def test_export_summary_to_csv(tmp_path):
     from backend.data_parser import export_summary_to_csv
 
     clean_path = FIXTURES_DIR / "match_1_clean.json"
-    with open(clean_path, "r", encoding="utf-8") as f:
+    with open(clean_path, encoding="utf-8") as f:
         match_data = json.load(f)
 
     out_csv = tmp_path / "summary.csv"

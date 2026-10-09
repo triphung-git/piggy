@@ -11,29 +11,24 @@ Quản lý 2 cửa sổ:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
-import os
 import subprocess
 import sys
 from pathlib import Path
 
 # UTF-8 và DPI Awareness trên Windows
 if sys.platform == "win32":
-    try:
+    with contextlib.suppress(Exception):
         sys.stdout.reconfigure(encoding="utf-8")
         sys.stderr.reconfigure(encoding="utf-8")
-    except Exception:
-        pass
-    try:
+    with contextlib.suppress(Exception):
         import ctypes
         ctypes.windll.shcore.SetProcessDpiAwareness(2)
-    except Exception:
-        try:
-            import ctypes
-            ctypes.windll.user32.SetProcessDPIAware()
-        except Exception:
-            pass
+    with contextlib.suppress(Exception):
+        import ctypes
+        ctypes.windll.user32.SetProcessDPIAware()
 
 # Thêm thư mục gốc vào PYTHONPATH
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -43,7 +38,8 @@ if str(BASE_DIR) not in sys.path:
 import webview
 
 from backend.match_service import MatchService
-from backend.overlay_generator import generate_overlay_html, load_overlay_config as load_generator_config
+from backend.overlay_generator import generate_overlay_html
+from backend.overlay_generator import load_overlay_config as load_generator_config
 from desktop.bridge import StudioBridge
 
 logging.basicConfig(
@@ -54,8 +50,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("desktop_app")
 
-from backend.paths import get_app_dir, resolve_resource
 from backend.network_hub import start_server
+from backend.paths import get_app_dir, resolve_resource
 
 BASE_DIR = get_app_dir()
 OUTPUT_DIR = BASE_DIR / "output"
@@ -93,7 +89,7 @@ def ensure_prerequisites() -> None:
     for cand in cache_files:
         if cand.exists():
             try:
-                with open(cand, "r", encoding="utf-8") as f:
+                with open(cand, encoding="utf-8") as f:
                     data = json.load(f)
                     if data:
                         cfg = load_generator_config(BASE_DIR / "overlay_config.json")
@@ -175,10 +171,8 @@ def main() -> None:
     # Dọn dẹp khi đóng app
     def on_closed():
         logger.info("Shutting down TFT Studio")
-        try:
+        with contextlib.suppress(Exception):
             overlay_win.destroy()
-        except Exception:
-            pass
 
     controller_win.events.closed += on_closed
 

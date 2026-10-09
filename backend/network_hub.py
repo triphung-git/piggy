@@ -17,13 +17,13 @@ import re
 import secrets
 import threading
 import time
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
+import uvicorn
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-import uvicorn
 
 from backend.config import load_overlay_config, save_overlay_config
 from backend.paths import get_app_dir, resolve_resource
@@ -52,7 +52,7 @@ class LocalNotifier:
     """Quản lý kết nối WebSocket cục bộ để thông báo cho OBS Overlay cập nhật."""
 
     def __init__(self) -> None:
-        self._connections: Set[WebSocket] = set()
+        self._connections: set[WebSocket] = set()
         self._lock = asyncio.Lock()
 
     async def connect(self, ws: WebSocket) -> None:
@@ -66,10 +66,10 @@ class LocalNotifier:
             "Local WS client disconnected. Remaining: %d", len(self._connections)
         )
 
-    async def notify_all(self, message: Dict[str, Any]) -> None:
+    async def notify_all(self, message: dict[str, Any]) -> None:
         """Gửi thông báo tới tất cả các OBS / overlay tabs đang mở."""
         payload = json.dumps(message, ensure_ascii=False)
-        stale: List[WebSocket] = []
+        stale: list[WebSocket] = []
         for ws in list(self._connections):
             try:
                 await ws.send_text(payload)
@@ -126,9 +126,9 @@ notifier = LocalNotifier()
 
 # Tham chiếu tới StudioBridge (được set sau khi bridge khởi tạo)
 _bridge_ref: Any = None
-_server_thread: Optional[threading.Thread] = None
+_server_thread: threading.Thread | None = None
 _is_running = False
-_current_loop: Optional[asyncio.AbstractEventLoop] = None
+_current_loop: asyncio.AbstractEventLoop | None = None
 
 
 def set_bridge_reference(bridge: Any) -> None:
@@ -137,7 +137,7 @@ def set_bridge_reference(bridge: Any) -> None:
     _bridge_ref = bridge
 
 
-def notify_sync(message: Dict[str, Any]) -> None:
+def notify_sync(message: dict[str, Any]) -> None:
     """Gửi thông báo từ luồng Python đồng bộ → tất cả overlay tabs."""
     global _current_loop
     if _current_loop and _current_loop.is_running():
@@ -177,7 +177,7 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             try:
                 await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # Ping keepalive
                 await websocket.send_text(json.dumps({"type": "PING"}))
     except WebSocketDisconnect:
@@ -235,7 +235,7 @@ def get_overlay_config():
 
 
 @app.post("/api/config")
-def update_overlay_config(payload: Dict[str, Any]):
+def update_overlay_config(payload: dict[str, Any]):
     """Cập nhật overlay config và thông báo cho overlay tự refresh."""
     updated = save_overlay_config(payload)
     if _bridge_ref:
@@ -399,7 +399,7 @@ def get_overlay_inner_html():
         )
 
     try:
-        with open(overlay_path, "r", encoding="utf-8") as f:
+        with open(overlay_path, encoding="utf-8") as f:
             content = f.read()
 
         # Chuẩn hóa đường dẫn assets về absolute web paths
@@ -483,7 +483,7 @@ def serve_overlay_html():
         content = placeholder_html
     else:
         try:
-            with open(overlay_path, "r", encoding="utf-8") as f:
+            with open(overlay_path, encoding="utf-8") as f:
                 content = f.read()
         except Exception:
             content = "<html><body><p>Lỗi đọc overlay.html</p></body></html>"
@@ -640,7 +640,7 @@ def serve_overlay_css():
     if not css_path.exists():
         css_path = resolve_resource("templates/overlay.css")
     try:
-        with open(css_path, "r", encoding="utf-8") as f:
+        with open(css_path, encoding="utf-8") as f:
             css_content = f.read()
         css_content = css_content.replace("url('../assets/", "url('/assets/")
     except Exception:

@@ -14,7 +14,7 @@ import logging
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger("data_parser")
 
@@ -128,7 +128,7 @@ class DDragonLoader:
                 return {}
 
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 content = json.load(f)
                 return content.get("data", {})
         except Exception as exc:
@@ -216,7 +216,11 @@ class DDragonLoader:
     def _clean_fallback_name(raw_id: str) -> str:
         """Tạo tên hiển thị dễ đọc nếu không tìm thấy trong DDragon."""
         parts = raw_id.split("/")[-1]
-        for prefix in ("TFT_Item_", "TFT_Consumable_", "TFT18_", "TFT17_", "TFT16_", "TFT15_", "TFT14_", "TFT13_", "TFT12_", "DA_18_", "DA_"):
+        known_prefixes = (
+            "TFT_Item_", "TFT_Consumable_", "TFT18_", "TFT17_", "TFT16_",
+            "TFT15_", "TFT14_", "TFT13_", "TFT12_", "DA_18_", "DA_",
+        )
+        for prefix in known_prefixes:
             if parts.startswith(prefix):
                 parts = parts[len(prefix):]
                 break
@@ -304,7 +308,9 @@ def get_ddragon_loader(language: str = "vi_VN") -> DDragonLoader:
     return _LOADERS[language]
 
 
-def parse_tft_match(raw_match: dict, target_puuid: Optional[str] = None, language: str = "vi_VN") -> dict:
+def parse_tft_match(
+    raw_match: dict, target_puuid: str | None = None, language: str = "vi_VN"
+) -> dict:
     """
     Bóc tách 1 match JSON thô từ Riot TFT-Match-V1 thành dữ liệu cấu trúc sạch.
     Nếu target_puuid được chỉ định, sẽ ưu tiên trích xuất chi tiết người chơi đó.
@@ -333,7 +339,7 @@ def parse_tft_match(raw_match: dict, target_puuid: Optional[str] = None, languag
     participants_raw: list[dict] = info.get("participants", [])
 
     # Trích xuất dữ liệu người chơi mục tiêu
-    target_player_data: Optional[dict] = None
+    target_player_data: dict | None = None
     lobby_summary: list[dict] = []
 
     for p in participants_raw:
@@ -531,7 +537,7 @@ def export_clean_matches_to_json(matches: list[dict], output_file: str | Path) -
     logger.info("JSON exported: %s", output_path.name)
 
 
-def validate_custom_augment(item: Any, allowlist: Optional[set[str]] = None) -> bool:
+def validate_custom_augment(item: Any, allowlist: set[str] | None = None) -> bool:
     """Kiểm tra tính an toàn và hợp lệ của một định danh custom augment (K3).
     Ngăn chặn tuyệt đối path traversal (.., /, \\), ký tự điều khiển, injection.
     """
@@ -547,7 +553,7 @@ def validate_custom_augment(item: Any, allowlist: Optional[set[str]] = None) -> 
     if any(p in val for p in ("..", "/", "\\", "\x00", "<", ">", '"', "'", "`", "$", "{", "}")):
         return False
 
-    # 2. Định dạng ký tự an toàn: chỉ cho phép chữ cái, số, gạch dưới, gạch ngang, khoảng trắng, dấu chấm
+    # 2. Định dạng ký tự an toàn: chữ cái, số, gạch dưới, gạch ngang, khoảng trắng, dấu chấm
     if not re.match(r"^[a-zA-Z0-9_\-. ]{1,128}$", val):
         return False
 

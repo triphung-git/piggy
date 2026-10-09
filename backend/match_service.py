@@ -11,21 +11,15 @@ import json
 import logging
 import threading
 import time
-from pathlib import Path
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
-from backend.config import AppConfig, REGION_MAPPING, load_overlay_config
+from backend.config import REGION_MAPPING, AppConfig
 from backend.data_parser import DDragonLoader, parse_tft_match
+from backend.paths import get_app_dir
 from backend.riot_client import (
-    AccountNotFoundError,
-    AuthenticationError,
-    MatchNotFoundError,
-    RateLimitError,
-    RiotAPIError,
     RiotTFTClient,
 )
-
-from backend.paths import get_app_dir
 
 logger = logging.getLogger("match_service")
 
@@ -36,20 +30,20 @@ OUTPUT_DIR = BASE_DIR / "output"
 class MatchService:
     """Quản lý dữ liệu trận đấu TFT và chế độ Auto-Polling ngầm."""
 
-    def __init__(self, config: Optional[AppConfig] = None) -> None:
+    def __init__(self, config: AppConfig | None = None) -> None:
         self.config = config or AppConfig.load()
         self.ddragon = DDragonLoader(language=self.config.language)
         self.cached_matches: list[dict[str, Any]] = []
-        self.active_match: Optional[dict[str, Any]] = None
-        self.active_puuid: Optional[str] = None
-        self.last_seen_match_id: Optional[str] = None
+        self.active_match: dict[str, Any] | None = None
+        self.active_puuid: str | None = None
+        self.last_seen_match_id: str | None = None
 
         # Quản lý Polling Thread
-        self._polling_thread: Optional[threading.Thread] = None
+        self._polling_thread: threading.Thread | None = None
         self._polling_stop_event = threading.Event()
         self._polling_interval: int = 60
         self._is_polling: bool = False
-        self._on_new_match_callback: Optional[Callable[[dict[str, Any]], None]] = None
+        self._on_new_match_callback: Callable[[dict[str, Any]], None] | None = None
 
     def _create_client(self) -> RiotTFTClient:
         return RiotTFTClient(
@@ -79,7 +73,7 @@ class MatchService:
         tag_line: str,
         region: str,
         count: int = 5,
-        progress_callback: Optional[Callable[[int, str], None]] = None,
+        progress_callback: Callable[[int, str], None] | None = None,
     ) -> list[dict[str, Any]]:
         """
         Lấy danh sách các trận gần nhất và bóc tách thành clean data.
@@ -155,9 +149,9 @@ class MatchService:
         tag_line: str,
         region: str,
         count: int = 1,
-        on_complete: Optional[Callable[[list[dict[str, Any]]], None]] = None,
-        on_error: Optional[Callable[[Exception], None]] = None,
-        progress_callback: Optional[Callable[[int, str], None]] = None,
+        on_complete: Callable[[list[dict[str, Any]]], None] | None = None,
+        on_error: Callable[[Exception], None] | None = None,
+        progress_callback: Callable[[int, str], None] | None = None,
     ) -> threading.Thread:
         """Chạy tải trận ngầm trong luồng riêng để không bao giờ làm đứng/khựng UI."""
         def _worker():
@@ -180,7 +174,7 @@ class MatchService:
         th.start()
         return th
 
-    def set_active_match_by_id(self, match_id: str) -> Optional[dict[str, Any]]:
+    def set_active_match_by_id(self, match_id: str) -> dict[str, Any] | None:
         """Chọn một trận đấu cụ thể để hiển thị lên Overlay."""
         for m in self.cached_matches:
             if m.get("match_id") == match_id:
@@ -194,7 +188,7 @@ class MatchService:
     def start_auto_polling(
         self,
         interval_seconds: int = 60,
-        on_new_match_callback: Optional[Callable[[dict[str, Any]], None]] = None,
+        on_new_match_callback: Callable[[dict[str, Any]], None] | None = None,
     ) -> bool:
         """Khởi động luồng Auto-polling kiểm tra trận mới."""
         if self._is_polling:

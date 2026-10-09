@@ -13,12 +13,12 @@ Sử dụng os.path.getmtime tiêu chuẩn Python:
 
 from __future__ import annotations
 
+import contextlib
 import logging
-import os
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
 
 logger = logging.getLogger("file_watcher")
 
@@ -30,7 +30,7 @@ class ConfigWatcher:
         self,
         config_path: Path,
         env_path: Path,
-        avatars_dir: Optional[Path] = None,
+        avatars_dir: Path | None = None,
         poll_interval: float = 0.5,
         debounce_seconds: float = 0.3,
     ) -> None:
@@ -41,27 +41,25 @@ class ConfigWatcher:
         self.debounce_seconds = debounce_seconds
 
         # Callback events
-        self.on_config_changed: Optional[Callable[[], None]] = None
-        self.on_env_changed: Optional[Callable[[], None]] = None
-        self.on_avatars_changed: Optional[Callable[[], None]] = None
+        self.on_config_changed: Callable[[], None] | None = None
+        self.on_env_changed: Callable[[], None] | None = None
+        self.on_avatars_changed: Callable[[], None] | None = None
 
         # State timestamps
-        self._mtimes: Dict[str, float] = {}
+        self._mtimes: dict[str, float] = {}
         self._stop_event = threading.Event()
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
 
         # Cập nhật mtime ban đầu
         self._record_initial_mtimes()
 
     def _get_file_mtime(self, path: Path) -> float:
-        try:
+        with contextlib.suppress(Exception):
             if path.exists():
                 return path.stat().st_mtime
-        except Exception:
-            pass
         return 0.0
 
-    def _get_dir_max_mtime(self, dir_path: Optional[Path]) -> float:
+    def _get_dir_max_mtime(self, dir_path: Path | None) -> float:
         if not dir_path or not dir_path.exists():
             return 0.0
         try:
@@ -84,7 +82,9 @@ class ConfigWatcher:
             return
 
         self._stop_event.clear()
-        self._thread = threading.Thread(target=self._watch_loop, daemon=True, name="ConfigWatcherThread")
+        self._thread = threading.Thread(
+            target=self._watch_loop, daemon=True, name="ConfigWatcherThread"
+        )
         self._thread.start()
         logger.info(
             "ConfigWatcher started (polling every %.1fs, watching: %s, %s)",
@@ -101,7 +101,7 @@ class ConfigWatcher:
         logger.info("ConfigWatcher stopped")
 
     def _watch_loop(self) -> None:
-        last_trigger_time: Dict[str, float] = {}
+        last_trigger_time: dict[str, float] = {}
 
         while not self._stop_event.is_set():
             time.sleep(self.poll_interval)
@@ -116,7 +116,9 @@ class ConfigWatcher:
                 self._mtimes["config"] = cfg_mtime
                 if now - last_trigger_time.get("config", 0.0) >= self.debounce_seconds:
                     last_trigger_time["config"] = now
-                    logger.info("Detected change in %s -> triggering auto-sync", self.config_path.name)
+                    logger.info(
+                        "Detected change in %s -> triggering auto-sync", self.config_path.name
+                    )
                     if self.on_config_changed:
                         try:
                             self.on_config_changed()
@@ -129,7 +131,9 @@ class ConfigWatcher:
                 self._mtimes["env"] = env_mtime
                 if now - last_trigger_time.get("env", 0.0) >= self.debounce_seconds:
                     last_trigger_time["env"] = now
-                    logger.info("Detected change in %s -> triggering env reload", self.env_path.name)
+                    logger.info(
+                        "Detected change in %s -> triggering env reload", self.env_path.name
+                    )
                     if self.on_env_changed:
                         try:
                             self.on_env_changed()

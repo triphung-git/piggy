@@ -18,7 +18,8 @@ def get_app_dir() -> Path:
     Trả về thư mục gốc thực thi của ứng dụng.
     - Chế độ .exe: Thư mục chứa file TFT_PostMatch_Studio.exe.
     - Chế độ script: Thư mục gốc của dự án.
-    Dùng cho các tài nguyên động người dùng có thể chỉnh sửa: .env, overlay_config.json, output/, avatars.
+    Dùng cho các tài nguyên động người dùng có thể chỉnh sửa:
+    .env, overlay_config.json, output/, avatars.
     """
     if getattr(sys, "frozen", False):
         return Path(sys.executable).resolve().parent
