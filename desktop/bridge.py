@@ -41,6 +41,49 @@ AVATARS_DIR = BASE_DIR / "assets" / "avatars"
 
 # (Transform & Crop parameters removed)
 
+VALID_AVATAR_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
+MAX_AVATAR_SIZE = 10 * 1024 * 1024  # 10 MB
+
+
+def validate_avatar_file(path: Path | str) -> tuple[bool, str]:
+    """Kiểm tra tính an toàn của file ảnh avatar (K4).
+    Kiểm tra tồn tại, kích thước (<10MB), phần mở rộng hợp lệ, và magic bytes thực tế.
+    """
+    p = Path(path)
+    if not p.is_file():
+        return False, "File không tồn tại hoặc không phải là file thông thường"
+
+    if p.suffix.lower() not in VALID_AVATAR_EXTENSIONS:
+        return False, (
+            f"Định dạng file không được hỗ trợ ({p.suffix}). "
+            "Chỉ chấp nhận .png, .jpg, .jpeg, .webp"
+        )
+
+    try:
+        size = p.stat().st_size
+        if size == 0:
+            return False, "File ảnh rỗng (0 bytes)"
+        if size > MAX_AVATAR_SIZE:
+            return False, f"Kích thước file vượt quá giới hạn tối đa 10MB ({size} bytes)"
+
+        with open(p, "rb") as f:
+            header = f.read(16)
+
+        is_valid_magic = any(
+            header.startswith(magic)
+            for magic in (b"\xff\xd8\xff", b"\x89PNG\r\n\x1a\n", b"GIF87a", b"GIF89a")
+        )
+        is_webp = header.startswith(b"RIFF") and len(header) >= 12 and header[8:12] == b"WEBP"
+        if not is_valid_magic and is_webp:
+            is_valid_magic = True
+
+        if not is_valid_magic:
+            return False, "Nội dung file không đúng định dạng ảnh hợp lệ (magic bytes mismatch)"
+
+        return True, ""
+    except Exception as exc:
+        return False, f"Lỗi khi kiểm tra file ảnh: {exc}"
+
 
 class StudioBridge:
     """API Object được truyền vào pywebview — Standalone Edition."""
@@ -61,6 +104,19 @@ class StudioBridge:
         # Cấu hình callback Auto-polling
         self._setup_polling_callback()
 
+        # Tự động kích hoạt Auto-polling ngầm nếu .env đã có API Key và Riot ID
+        cfg = AppConfig.load()
+        if cfg.api_key and cfg.game_name:
+            self._match_service.start_auto_polling(
+                interval_seconds=30,
+                on_new_match_callback=self._on_new_match_cb,
+            )
+            logger.info(
+                "Auto-polling automatically started (interval 30s) for %s#%s",
+                cfg.game_name,
+                cfg.tag_line,
+            )
+
         # Khởi động File Watcher theo dõi config changes cục bộ
         self._setup_file_watcher()
 
@@ -73,6 +129,7 @@ class StudioBridge:
     def _setup_polling_callback(self) -> None:
         def on_new_match(match: dict[str, Any]) -> None:
             logger.info("New match detected: %s", match.get("match_id"))
+            self._compile_and_notify(source="AutoPolling")
             self.notify_frontend(
                 "onAppStateUpdate",
                 {
@@ -458,7 +515,7 @@ class StudioBridge:
 
     def get_augments_list(self) -> list[dict[str, Any]]:
         """Trả về danh sách lõi nâng cấp tiếng Anh (en_US) từ DDragon, sắp xếp A-Z.
-        Mỗi mục: { "id": str, "name": str (tiếng Anh), "image": str (filename.png) }
+        Mỗi mục: { "id": str, "name": str, "image": str, "tier": int, "is_destiny": bool }
         """
         try:
             from tft_studio.data.parser import get_ddragon_loader
@@ -474,7 +531,29 @@ class StudioBridge:
                 if dedup_key in seen:
                     continue
                 seen.add(dedup_key)
-                result.append({"id": aug_id, "name": aug_name, "image": img})
+
+                # Phân loại bậc (tier: 1, 2, 3) và nhận diện lõi Destiny
+                s_img = img.lower()
+                s_name = aug_name.lower()
+                s_id = str(aug_id).lower()
+                if any(x in s_img for x in ("_iii", "-iii", "3.png")) or s_id.endswith("3") or "prismatic" in s_name:
+                    tier = 3
+                elif any(x in s_img for x in ("_ii", "-ii", "2.png")) or s_id.endswith("2") or "gold" in s_name:
+                    tier = 2
+                elif any(x in s_img for x in ("_i", "-i", "1.png")) or s_id.endswith("1") or "silver" in s_name:
+                    tier = 1
+                else:
+                    tier = 2
+
+                is_destiny = "destiny" in s_name or "destiny" in s_img or "vận mệnh" in s_name
+
+                result.append({
+                    "id": aug_id,
+                    "name": aug_name,
+                    "image": img,
+                    "tier": tier,
+                    "is_destiny": is_destiny,
+                })
             result.sort(key=lambda x: x["name"].lower())
             return result
         except Exception as e:
@@ -482,16 +561,16 @@ class StudioBridge:
             return []
 
     def save_custom_augments(self, augments: list) -> dict[str, Any]:
-        """Lưu 3 lõi nâng cấp đã chọn vào overlay_config.json và re-compile overlay.
+        """Lưu các lõi nâng cấp đã chọn (3-6 lõi) vào overlay_config.json và re-compile overlay.
         Args:
-            augments: Danh sách tối đa 3 phần tử — mỗi phần tử là tên file ảnh (str)
+            augments: Danh sách tối đa 6 phần tử — mỗi phần tử là tên file ảnh (str)
                       hoặc None/empty để dùng Auto (lấy từ trận đấu).
         """
         try:
             from tft_studio.data.parser import validate_custom_augment
 
             normalized: list = []
-            for item in (augments or [])[:3]:
+            for item in (augments or [])[:6]:
                 if item is not None and not validate_custom_augment(item):
                     return {
                         "success": False,
@@ -615,50 +694,6 @@ class StudioBridge:
         is_p = self._match_service.is_polling_active()
         self.notify_frontend("onAppStateUpdate", {"is_polling": is_p})
         return is_p
-
-VALID_AVATAR_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
-MAX_AVATAR_SIZE = 10 * 1024 * 1024  # 10 MB
-
-
-def validate_avatar_file(path: Path | str) -> tuple[bool, str]:
-    """Kiểm tra tính an toàn của file ảnh avatar (K4).
-    Kiểm tra tồn tại, kích thước (<10MB), phần mở rộng hợp lệ, và magic bytes thực tế.
-    """
-    p = Path(path)
-    if not p.is_file():
-        return False, "File không tồn tại hoặc không phải là file thông thường"
-
-    if p.suffix.lower() not in VALID_AVATAR_EXTENSIONS:
-        return False, (
-            f"Định dạng file không được hỗ trợ ({p.suffix}). "
-            "Chỉ chấp nhận .png, .jpg, .jpeg, .webp"
-        )
-
-    try:
-        size = p.stat().st_size
-        if size == 0:
-            return False, "File ảnh rỗng (0 bytes)"
-        if size > MAX_AVATAR_SIZE:
-            return False, f"Kích thước file vượt quá giới hạn tối đa 10MB ({size} bytes)"
-
-        with open(p, "rb") as f:
-            header = f.read(16)
-
-        is_valid_magic = any(
-            header.startswith(magic)
-            for magic in (b"\xff\xd8\xff", b"\x89PNG\r\n\x1a\n", b"GIF87a", b"GIF89a")
-        )
-        is_webp = header.startswith(b"RIFF") and len(header) >= 12 and header[8:12] == b"WEBP"
-        if not is_valid_magic and is_webp:
-            is_valid_magic = True
-
-        if not is_valid_magic:
-            return False, "Nội dung file không đúng định dạng ảnh hợp lệ (magic bytes mismatch)"
-
-        return True, ""
-    except Exception as exc:
-        return False, f"Lỗi khi kiểm tra file ảnh: {exc}"
-
 
     def pick_avatar_file(self, player_name: str) -> dict[str, Any]:
         """Mở hộp thoại chọn ảnh avatar cho tuyển thủ."""

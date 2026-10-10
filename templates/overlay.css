@@ -380,6 +380,87 @@ html, body {
   object-fit: contain;
 }
 
+/* ==========================================================================
+   Bố cục cân xứng tự động khi có lõi Destiny (4, 5, 6 lõi)
+   ========================================================================== */
+
+/* 4 Lõi: Lưới 2x2 đối xứng hoàn hảo */
+.augments-grid:has(> :nth-child(4)):not(:has(> :nth-child(5))) {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  width: 200px;
+  justify-items: center;
+  align-items: center;
+}
+
+.augments-grid:has(> :nth-child(4)):not(:has(> :nth-child(5))) .augment-slot {
+  width: 86px;
+  height: 86px;
+  border-width: 3px;
+  clip-path: polygon(
+    12px 0,
+    calc(100% - 12px) 0,
+    100% 12px,
+    100% calc(100% - 12px),
+    calc(100% - 12px) 100%,
+    12px 100%,
+    0 calc(100% - 12px),
+    0 12px
+  );
+}
+
+/* 5 Lõi: 3 lõi hàng trên, 2 lõi hàng dưới căn giữa */
+.augments-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  width: 240px;
+}
+
+.augments-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) .augment-slot {
+  width: 72px;
+  height: 72px;
+  border-width: 2.5px;
+  clip-path: polygon(
+    10px 0,
+    calc(100% - 10px) 0,
+    100% 10px,
+    100% calc(100% - 10px),
+    calc(100% - 10px) 100%,
+    10px 100%,
+    0 calc(100% - 10px),
+    0 10px
+  );
+}
+
+/* 6 Lõi: Lưới 3x2 đối xứng (2 hàng x 3 cột) */
+.augments-grid:has(> :nth-child(6)) {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  width: 240px;
+  justify-items: center;
+  align-items: center;
+}
+
+.augments-grid:has(> :nth-child(6)) .augment-slot {
+  width: 72px;
+  height: 72px;
+  border-width: 2.5px;
+  clip-path: polygon(
+    10px 0,
+    calc(100% - 10px) 0,
+    100% 10px,
+    100% calc(100% - 10px),
+    calc(100% - 10px) 100%,
+    10px 100%,
+    0 calc(100% - 10px),
+    0 10px
+  );
+}
+
 .stats-divider {
   width: 240px;
   height: 2.5px;

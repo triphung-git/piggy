@@ -109,3 +109,41 @@ def test_xss_payload_is_escaped_in_overlay(tmp_path):
     assert '&lt;script&gt;alert(' in content
     assert '&lt;img src=x onerror=' in content
     assert '&lt;marquee&gt;' in content
+
+
+def test_build_augments_html_destiny_expansion():
+    """Kiểm tra build_augments_html hỗ trợ 4 lõi khi người chơi chọn Destiny Augment + Bonus."""
+    from tft_studio.render.generator import build_augments_html
+
+    cfg = {
+        "custom_augments": [
+            "GoldenDestiny_II.png",
+            "ThreeThrees_II.png",
+            "AnimaCommander_II.png",
+            "QuestForTheSeven_II.png",
+        ]
+    }
+    html_out = build_augments_html([], cfg)
+    assert html_out.count("augment-slot") == 4
+    assert "GoldenDestiny_II.png" in html_out
+    assert "ThreeThrees_II.png" in html_out
+
+
+def test_build_augments_html_destiny_six_slots():
+    """Kiểm tra build_augments_html hỗ trợ tối đa 6 lõi khi có nhiều lõi Destiny."""
+    from tft_studio.render.generator import build_augments_html
+
+    cfg = {
+        "custom_augments": [
+            "SilverDestiny_I.png",
+            "ThreeThrees_II.png",
+            "GoldenDestiny_II.png",
+            "AnimaCommander_II.png",
+            "PrismaticDestiny_III.png",
+            "QuestForTheSeven_II.png",
+        ]
+    }
+    html_out = build_augments_html([], cfg)
+    assert html_out.count("augment-slot") == 6
+    assert "SilverDestiny_I.png" in html_out
+    assert "PrismaticDestiny_III.png" in html_out

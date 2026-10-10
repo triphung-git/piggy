@@ -241,10 +241,10 @@ def build_augments_html(augments_detailed: list[dict], config: dict | None = Non
     # Chuẩn bị nguồn dữ liệu auto (từ trận đấu)
     auto_source = list(augments_detailed[:3]) if augments_detailed else []
 
-    # Xây dựng danh sách 3 slot
+    # Xây dựng danh sách các slot (tối thiểu 3 slot, tối đa 6 slot khi có lõi Destiny)
     items_to_render: list[dict | None] = []
     if custom and isinstance(custom, list):
-        for i, item in enumerate(custom[:3]):
+        for i, item in enumerate(custom[:6]):
             if item is None or (isinstance(item, str) and not item.strip()):
                 # Slot này để Auto — lấy từ trận đấu nếu có
                 items_to_render.append(auto_source[i] if i < len(auto_source) else None)

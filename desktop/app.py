@@ -127,8 +127,20 @@ def main() -> None:
     print("══════════════════════════════════════════\n", flush=True)
 
     # Khởi động services
+    from tft_studio.core.config import AppConfig
+
     match_service = MatchService()
     bridge = StudioBridge(match_service=match_service)
+
+    # Tự động tải trận mới nhất từ thông tin trong .env
+    app_cfg = AppConfig.load()
+    if app_cfg.api_key and app_cfg.game_name:
+        logger.info(
+            "Auto-fetching latest match for %s#%s from .env...",
+            app_cfg.game_name,
+            app_cfg.tag_line,
+        )
+        bridge.fetch_live_now()
 
     # URL cho hai cửa sổ
     overlay_url = f"http://127.0.0.1:{server_port}/overlay"

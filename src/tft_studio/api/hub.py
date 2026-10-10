@@ -298,7 +298,29 @@ def get_augments_list():
             if dedup_key in seen_names:
                 continue
             seen_names.add(dedup_key)
-            result.append({"id": aug_id, "name": aug_name, "image": img})
+
+            # Phân loại tier & nhận diện Destiny
+            s_img = img.lower()
+            s_name = aug_name.lower()
+            s_id = str(aug_id).lower()
+            if any(x in s_img for x in ("_iii", "-iii", "3.png")) or s_id.endswith("3") or "prismatic" in s_name:
+                tier = 3
+            elif any(x in s_img for x in ("_ii", "-ii", "2.png")) or s_id.endswith("2") or "gold" in s_name:
+                tier = 2
+            elif any(x in s_img for x in ("_i", "-i", "1.png")) or s_id.endswith("1") or "silver" in s_name:
+                tier = 1
+            else:
+                tier = 2
+
+            is_destiny = "destiny" in s_name or "destiny" in s_img or "vận mệnh" in s_name
+
+            result.append({
+                "id": aug_id,
+                "name": aug_name,
+                "image": img,
+                "tier": tier,
+                "is_destiny": is_destiny,
+            })
         result.sort(key=lambda x: x["name"].lower())
         return {"augments": result, "total": len(result)}
     except Exception as e:
@@ -310,7 +332,8 @@ def get_augments_list():
 async def save_custom_augments(request: Request):
     """
     Lưu custom_augments vào overlay_config.json và kích hoạt re-compile overlay.
-    Body JSON: { "custom_augments": ["image1.png", "image2.png", "image3.png"] }
+    Body JSON: { "custom_augments": ["image1.png", "image2.png", "image3.png", ...] }
+    Hỗ trợ từ 3 đến 6 lõi (khi có lõi Destiny).
     Phần tử trống (null / "") sẽ được lưu là null — khi render sẽ dùng dữ liệu thực từ trận đấu.
     """
     try:
@@ -329,7 +352,7 @@ async def save_custom_augments(request: Request):
 
     # Chuẩn hóa & kiểm tra an toàn (K3: Chống path traversal)
     normalized: list = []
-    for item in raw_augments[:3]:
+    for item in raw_augments[:6]:
         if item is not None and not validate_custom_augment(item):
             return JSONResponse(
                 {"success": False, "error": f"Invalid augment identifier: {item}"},

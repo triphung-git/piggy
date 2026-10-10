@@ -8,11 +8,6 @@ import {
   RefreshCw,
   Sparkles,
   Monitor,
-  Activity,
-  Radio,
-  User,
-  Key,
-  AlertTriangle,
   Search,
   ChevronDown,
   Save,
@@ -23,6 +18,68 @@ interface AugmentItem {
   id: string;
   name: string;   // English name from DDragon
   image: string;  // Filename, e.g. "BronzeForLife_II.png"
+  tier?: number;  // 1, 2, or 3
+  is_destiny?: boolean;
+}
+
+interface AugmentSlotState {
+  main: string | null;   // image filename or null = Auto
+  bonus: string | null;  // image filename or null = Auto
+}
+
+export function getDestinyTier(aug: AugmentItem | null | undefined): 1 | 2 | 3 | null {
+  if (!aug) return null;
+  const s = `${aug.name} ${aug.image} ${aug.id}`.toLowerCase();
+  if (s.includes('silverdestiny') || s.includes('silver destiny') || s.includes('vận mệnh bạc')) return 1;
+  if (s.includes('goldendestiny') || s.includes('gold destiny') || s.includes('vận mệnh vàng')) return 2;
+  if (s.includes('prismaticdestiny') || s.includes('prismatic destiny') || s.includes('vận mệnh kim cương')) return 3;
+  return null;
+}
+
+export function getAugmentTier(aug: AugmentItem | null | undefined): number {
+  if (!aug) return 2;
+  if (aug.tier) return aug.tier;
+  const s = `${aug.name} ${aug.image} ${aug.id}`.toLowerCase();
+  if (s.includes('_iii') || s.includes('-iii') || s.includes('3.png') || aug.id.endsWith('3') || s.includes('prismatic')) return 3;
+  if (s.includes('_ii') || s.includes('-ii') || s.includes('2.png') || aug.id.endsWith('2') || s.includes('gold')) return 2;
+  if (s.includes('_i') || s.includes('-i') || s.includes('1.png') || aug.id.endsWith('1') || s.includes('silver')) return 1;
+  return 2;
+}
+
+function parseCustomAugmentsToSlots(
+  ca: (string | null)[] | undefined,
+  list: AugmentItem[]
+): AugmentSlotState[] {
+  if (!ca || !Array.isArray(ca) || ca.length === 0) {
+    return [
+      { main: null, bonus: null },
+      { main: null, bonus: null },
+      { main: null, bonus: null },
+    ];
+  }
+
+  const result: AugmentSlotState[] = [];
+  let idx = 0;
+  for (let slot = 0; slot < 3; slot++) {
+    if (idx >= ca.length) {
+      result.push({ main: null, bonus: null });
+      continue;
+    }
+    const val = ca[idx];
+    idx++;
+    const mainAug = val ? list.find(a => a.image === val) : null;
+    const isDestiny = mainAug
+      ? getDestinyTier(mainAug) !== null
+      : (val ? val.toLowerCase().includes('destiny') : false);
+
+    let bonusVal: string | null = null;
+    if (isDestiny && idx < ca.length) {
+      bonusVal = ca[idx] || null;
+      idx++;
+    }
+    result.push({ main: val || null, bonus: bonusVal });
+  }
+  return result;
 }
 
 declare global {
@@ -38,11 +95,6 @@ declare global {
         }>;
         toggle_overlay_visibility?: (visible: boolean) => Promise<boolean>;
         close_panel?: () => Promise<void>;
-        get_riot_config?: () => Promise<any>;
-        update_riot_id?: (riot_id: string) => Promise<any>;
-        update_api_key?: (api_key: string) => Promise<any>;
-        fetch_live_now?: () => Promise<any>;
-        set_auto_polling?: (enabled: boolean, interval?: number) => Promise<boolean>;
         get_augments_list?: () => Promise<AugmentItem[]>;
         save_custom_augments?: (augments: (string | null)[]) => Promise<any>;
       };
@@ -57,17 +109,6 @@ export default function SourceTransformPanel() {
   const [isVisible, setIsVisible] = useState(false);
   const [isClosed, setIsClosed] = useState(false);
 
-  // Riot ID & Live Tracker State
-  const [riotId, setRiotId] = useState('');
-  const [apiKeyMasked, setApiKeyMasked] = useState('');
-  const [hasApiKey, setHasApiKey] = useState(false);
-  const [isPolling, setIsPolling] = useState(false);
-  const [isFetchingRiot, setIsFetchingRiot] = useState(false);
-  const [showErrorToast, setShowErrorToast] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
-  const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
-  const [newApiKeyInput, setNewApiKeyInput] = useState('');
-
   // Render process state
   const [isRendering, setIsRendering] = useState(false);
   const [renderProgress, setRenderProgress] = useState(0);
@@ -81,36 +122,19 @@ export default function SourceTransformPanel() {
 
   // Augments Selector State
   const [augmentsList, setAugmentsList] = useState<AugmentItem[]>([]);
-  // 3 slots: each is the image filename (e.g. "BronzeForLife_II.png") or null = Auto
-  const [selectedAugments, setSelectedAugments] = useState<(string | null)[]>([null, null, null]);
+  // 3 slots chính, mỗi slot có main và bonus (nếu là lõi Destiny)
+  const [slotsState, setSlotsState] = useState<AugmentSlotState[]>([
+    { main: null, bonus: null },
+    { main: null, bonus: null },
+    { main: null, bonus: null },
+  ]);
   const [isSavingAugments, setIsSavingAugments] = useState(false);
   const [augmentsLoaded, setAugmentsLoaded] = useState(false);
 
-  // Nạp riot config & augments khi mở app
+  // Nạp danh sách augments khi mở app
   useEffect(() => {
-    const initRiotConfig = async () => {
-      try {
-        let riotData: any = null;
-        if (window.pywebview?.api?.get_riot_config) {
-          riotData = await window.pywebview.api.get_riot_config();
-        } else {
-          riotData = await fetch('/api/riot').then(r => r.json()).catch(() => null);
-        }
-        if (riotData) {
-          if (riotData.riot_id) setRiotId(riotData.riot_id);
-          if (riotData.api_key_masked) setApiKeyMasked(riotData.api_key_masked);
-          if (riotData.has_api_key !== undefined) setHasApiKey(riotData.has_api_key);
-          if (riotData.is_polling !== undefined) setIsPolling(riotData.is_polling);
-        }
-      } catch (e) {
-        console.warn('Could not load Riot config:', e);
-      }
-    };
-
-    // Load danh sách augments + config hiện tại
     const initAugments = async () => {
       try {
-        // Load danh sách tất cả augments
         let list: AugmentItem[] = [];
         if (window.pywebview?.api?.get_augments_list) {
           list = await window.pywebview.api.get_augments_list();
@@ -124,11 +148,7 @@ export default function SourceTransformPanel() {
         // Load custom_augments hiện tại từ config
         const cfgRes = await fetch('/api/config').then(r => r.json()).catch(() => null);
         if (cfgRes?.custom_augments && Array.isArray(cfgRes.custom_augments)) {
-          const slots = [0, 1, 2].map(i => {
-            const v = cfgRes.custom_augments[i];
-            return (typeof v === 'string' && v.trim()) ? v.trim() : null;
-          });
-          setSelectedAugments(slots);
+          setSlotsState(parseCustomAugmentsToSlots(cfgRes.custom_augments, list));
         }
       } catch (e) {
         console.warn('Could not load augments:', e);
@@ -137,14 +157,9 @@ export default function SourceTransformPanel() {
     };
 
     if (window.pywebview) {
-      initRiotConfig();
       initAugments();
     } else {
-      window.addEventListener('pywebviewready', () => {
-        initRiotConfig();
-        initAugments();
-      });
-      initRiotConfig();
+      window.addEventListener('pywebviewready', initAugments);
       initAugments();
     }
 
@@ -152,39 +167,13 @@ export default function SourceTransformPanel() {
     window.onAppStateUpdate = (data: any) => {
       if (data?.overlay_config?.custom_augments !== undefined) {
         const ca = data.overlay_config.custom_augments;
-        if (Array.isArray(ca)) {
-          const slots = [0, 1, 2].map(i => {
-            const v = ca[i];
-            return (typeof v === 'string' && v.trim()) ? v.trim() : null;
-          });
-          setSelectedAugments(slots);
-        } else {
-          // config không có custom_augments → tất cả Auto
-          setSelectedAugments([null, null, null]);
-        }
-      }
-      if (data?.config) {
-        if (data.config.riot_id) setRiotId(data.config.riot_id);
-        if (data.config.api_key) {
-          setHasApiKey(true);
-          const k = data.config.api_key;
-          setApiKeyMasked(k.length > 10 ? `${k.slice(0, 6)}...${k.slice(-4)}` : k);
-        }
-      }
-      if (data?.is_polling !== undefined) {
-        setIsPolling(data.is_polling);
+        setSlotsState(parseCustomAugmentsToSlots(ca, augmentsList));
       }
       if (data?.fetch_status) {
-        setIsFetchingRiot(false);
         if (data.fetch_status.success) {
           setToastMessage(data.fetch_status.message || 'Đã nạp trận mới nhất');
           setShowSuccessToast(true);
-          setShowErrorToast(false);
           setTimeout(() => setShowSuccessToast(false), 4000);
-        } else {
-          setErrorMessage(data.fetch_status.error || 'Lỗi khi kết nối Riot API');
-          setShowErrorToast(true);
-          setTimeout(() => setShowErrorToast(false), 7000);
         }
       }
       if (data?.active_match) {
@@ -195,7 +184,6 @@ export default function SourceTransformPanel() {
     };
 
     // Kết nối WS cục bộ để nhận thông báo OVERLAY_RENDERED
-    // (chỉ để hiển thị trạng thái OBS connected, không dùng cho multi-client sync)
     let socket: WebSocket | null = null;
     let reconnectTimer: any = null;
 
@@ -234,7 +222,6 @@ export default function SourceTransformPanel() {
       }
     };
 
-    // Chỉ kết nối WS khi chạy trên HTTP (không phải file://)
     if (window.location.protocol.startsWith('http')) {
       connectWs();
     }
@@ -243,90 +230,25 @@ export default function SourceTransformPanel() {
       if (reconnectTimer) clearTimeout(reconnectTimer);
       if (socket) socket.close();
     };
-  }, []);
-
-  // Cập nhật Riot ID & Kích hoạt Fetch trận mới
-  const handleUpdateRiotId = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!riotId.trim() || isFetchingRiot) return;
-    setIsFetchingRiot(true);
-    setShowErrorToast(false);
-    try {
-      if (window.pywebview?.api?.update_riot_id) {
-        const res = await window.pywebview.api.update_riot_id(riotId.trim());
-        if (res && !res.success && res.error) {
-          setErrorMessage(res.error);
-          setShowErrorToast(true);
-          setIsFetchingRiot(false);
-        }
-      } else {
-        const res = await fetch('/api/riot/fetch', { method: 'POST' }).then(r => r.json());
-        if (res && !res.success && res.error) {
-          setErrorMessage(res.error);
-          setShowErrorToast(true);
-          setIsFetchingRiot(false);
-        }
-      }
-    } catch (err: any) {
-      setErrorMessage(err?.message || 'Không thể kết nối Riot API');
-      setShowErrorToast(true);
-      setIsFetchingRiot(false);
-    }
-  };
-
-  // Bật/tắt Auto Polling Live In-Game Tracker
-  const handleTogglePolling = async () => {
-    try {
-      const nextPolling = !isPolling;
-      if (window.pywebview?.api?.set_auto_polling) {
-        const res = await window.pywebview.api.set_auto_polling(nextPolling, 30);
-        setIsPolling(res);
-      } else {
-        setIsPolling(nextPolling);
-      }
-      setToastMessage(nextPolling ? '🟢 Đã BẬT Live Tracker (30s)' : '⚪ Đã TẮT Live Tracker');
-      setShowSuccessToast(true);
-      setTimeout(() => setShowSuccessToast(false), 3000);
-    } catch (e) {
-      console.warn('Could not toggle polling:', e);
-    }
-  };
-
-  // Lưu API Key mới vào .env
-  const handleSaveApiKey = async () => {
-    if (!newApiKeyInput.trim()) return;
-    try {
-      if (window.pywebview?.api?.update_api_key) {
-        const res = await window.pywebview.api.update_api_key(newApiKeyInput.trim());
-        if (res && res.success) {
-          setHasApiKey(true);
-          const k = newApiKeyInput.trim();
-          setApiKeyMasked(k.length > 10 ? `${k.slice(0, 6)}...${k.slice(-4)}` : k);
-          setIsKeyModalOpen(false);
-          setNewApiKeyInput('');
-          setToastMessage('✓ Đã cập nhật API Key mới!');
-          setShowSuccessToast(true);
-          setShowErrorToast(false);
-          handleUpdateRiotId();
-        } else {
-          setErrorMessage(res?.error || 'Lỗi khi lưu API Key');
-          setShowErrorToast(true);
-        }
-      }
-    } catch (err: any) {
-      setErrorMessage(err?.message || 'Lỗi khi lưu API Key');
-      setShowErrorToast(true);
-    }
-  };
+  }, [augmentsList]);
 
   // Lưu Augments và re-render overlay
   const handleSaveAugments = async () => {
     if (isSavingAugments) return;
     setIsSavingAugments(true);
     try {
-      // selectedAugments: (string | null)[] — null = Auto
+      // Flatten slotsState into array of up to 6 elements
+      const flatList: (string | null)[] = [];
+      for (const slot of slotsState) {
+        flatList.push(slot.main);
+        const mainAug = slot.main ? augmentsList.find(a => a.image === slot.main) : null;
+        if (getDestinyTier(mainAug) !== null) {
+          flatList.push(slot.bonus);
+        }
+      }
+
       if (window.pywebview?.api?.save_custom_augments) {
-        const res = await window.pywebview.api.save_custom_augments(selectedAugments);
+        const res = await window.pywebview.api.save_custom_augments(flatList);
         if (res?.success) {
           setToastMessage('✓ Augments saved & overlay re-rendered!');
           setShowSuccessToast(true);
@@ -335,11 +257,10 @@ export default function SourceTransformPanel() {
           throw new Error(res?.error || 'Unknown error');
         }
       } else {
-        // Web mode: REST API
         const res = await fetch('/api/augments', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ custom_augments: selectedAugments }),
+          body: JSON.stringify({ custom_augments: flatList }),
         }).then(r => r.json());
         if (res?.success) {
           setToastMessage('✓ Augments saved & overlay re-rendered!');
@@ -350,9 +271,7 @@ export default function SourceTransformPanel() {
         }
       }
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Failed to save augments');
-      setShowErrorToast(true);
-      setTimeout(() => setShowErrorToast(false), 5000);
+      alert('Error saving augments: ' + (err?.message || err));
     } finally {
       setIsSavingAugments(false);
     }
@@ -370,7 +289,6 @@ export default function SourceTransformPanel() {
 
     try {
       if (window.pywebview?.api?.render_overlay) {
-        // Chế độ Desktop: gọi trực tiếp Python API
         setRenderProgress(45);
         const res = await window.pywebview.api.render_overlay();
         const elapsedSec = ((performance.now() - startTime) / 1000).toFixed(2);
@@ -389,7 +307,6 @@ export default function SourceTransformPanel() {
           }
         }, 300);
       } else {
-        // Chế độ Browser: gọi REST API localhost
         setRenderProgress(40);
         const res = await fetch('/api/render', {
           method: 'POST',
@@ -443,7 +360,7 @@ export default function SourceTransformPanel() {
     return (
       <div className="flex flex-col items-center justify-center p-8 bg-zinc-950 rounded-xl border border-zinc-800 shadow-2xl">
         <div className="text-zinc-400 text-sm mb-3 font-medium flex items-center gap-2">
-          <Activity className="w-4 h-4 text-blue-400" />
+          <Sparkles className="w-4 h-4 text-amber-400" />
           <span>TFT Post-Match Studio — Closed</span>
         </div>
         <button
@@ -498,150 +415,24 @@ export default function SourceTransformPanel() {
                 navigator.clipboard?.writeText(obsUrl).catch(() => {});
               }}
             >
-              {obsUrl}
+              Copy URL
             </span>
           </div>
           <span className="text-[9px] font-mono text-zinc-500 tracking-tight italic">
-            Standalone v3.0
+            Live Real-time
           </span>
         </div>
       </div>
 
-      {/* Scrollable body — co dãn theo chiều cao cửa sổ */}
+      {/* Scrollable body */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 space-y-3"
         style={{
           scrollbarWidth: 'thin',
           scrollbarColor: '#3f3f46 transparent',
         }}
       >
-        {/* Riot Live In-Game Tracker Section */}
-        <div className="bg-zinc-950/70 border border-zinc-800/80 rounded-lg p-2.5 flex flex-col gap-2 shadow-inner">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-200">
-              <Activity className="w-3.5 h-3.5 text-blue-400" />
-              <span>Riot Live In-Game Tracker</span>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleTogglePolling}
-              title="Tự động kiểm tra trận mới ngầm mỗi 30s khi ván đấu kết thúc"
-              className={`px-2 py-0.5 rounded text-[10px] font-mono flex items-center gap-1 border transition-all ${
-                isPolling
-                  ? 'bg-emerald-950/60 border-emerald-600/70 text-emerald-400 animate-pulse'
-                  : 'bg-zinc-900 hover:bg-zinc-800 border-zinc-700 text-zinc-400'
-              }`}
-            >
-              <Radio className="w-3 h-3" />
-              <span>{isPolling ? 'AUTO 30s: BẬT' : 'AUTO: TẮT'}</span>
-            </button>
-          </div>
-
-          {/* Riot ID Input & Fetch Button */}
-          <form onSubmit={handleUpdateRiotId} className="flex items-center gap-1.5">
-            <div className="relative flex-1">
-              <User className="w-3.5 h-3.5 text-zinc-500 absolute left-2 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={riotId}
-                onChange={(e) => setRiotId(e.target.value)}
-                placeholder="Riot ID (vd: Bí Ẹo#VN2)"
-                className="w-full bg-zinc-900 border border-zinc-800 rounded px-2.5 pl-7 py-1 text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-blue-500 font-mono"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={isFetchingRiot}
-              className={`px-3 py-1 rounded text-xs font-medium border flex items-center gap-1 transition-all ${
-                isFetchingRiot
-                  ? 'bg-blue-950 border-blue-800 text-blue-300 cursor-wait'
-                  : 'bg-blue-600/90 hover:bg-blue-600 border-blue-500 text-white shadow-sm'
-              }`}
-            >
-              <RefreshCw className={`w-3 h-3 ${isFetchingRiot ? 'animate-spin' : ''}`} />
-              <span>{isFetchingRiot ? 'Đang quét...' : 'Lấy Trận'}</span>
-            </button>
-          </form>
-
-          {/* API Key Status Pill & Quick Update */}
-          <div className="flex items-center justify-between text-[10px] font-mono text-zinc-500 pt-0.5 border-t border-zinc-800/60">
-            <div className="flex items-center gap-1">
-              <Key className="w-3 h-3 text-zinc-500" />
-              <span>Key:</span>
-              <span className={hasApiKey ? 'text-zinc-400' : 'text-amber-400'}>
-                {apiKeyMasked || '(Chưa có key)'}
-              </span>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setIsKeyModalOpen(!isKeyModalOpen)}
-              className="text-blue-400 hover:text-blue-300 hover:underline transition-colors"
-            >
-              {isKeyModalOpen ? 'Đóng' : 'Đổi API Key (24h)'}
-            </button>
-          </div>
-
-          {/* Inline API Key Input */}
-          {isKeyModalOpen && (
-            <div className="mt-1 p-2 bg-zinc-900/90 border border-zinc-700/80 rounded flex flex-col gap-1.5">
-              <div className="flex items-center justify-between text-[10px] text-zinc-400">
-                <span>Dán Riot API Key mới (RGAPI-...):</span>
-                <a
-                  href="https://developer.riotgames.com"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-blue-400 hover:underline text-[9px]"
-                >
-                  Lấy key tại Riot ↗
-                </a>
-              </div>
-              <div className="flex gap-1.5">
-                <input
-                  type="text"
-                  value={newApiKeyInput}
-                  onChange={(e) => setNewApiKeyInput(e.target.value)}
-                  placeholder="RGAPI-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                  className="flex-1 bg-zinc-950 border border-zinc-700 rounded px-2 py-0.5 text-xs text-zinc-200 placeholder:text-zinc-600 font-mono focus:outline-none focus:border-blue-500"
-                />
-                <button
-                  type="button"
-                  onClick={handleSaveApiKey}
-                  className="px-2.5 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-xs font-medium"
-                >
-                  Lưu
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Error Message Toast in Card */}
-          {showErrorToast && (
-            <div className="p-2 bg-red-950/60 border border-red-800/80 rounded text-[11px] text-red-300 flex items-start gap-1.5">
-              <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <span className="font-semibold block">Lỗi kết nối Riot API:</span>
-                <span className="text-[10px] text-red-300/90 font-mono leading-tight block">{errorMessage}</span>
-                {(errorMessage.includes('401') || errorMessage.includes('403') || errorMessage.includes('hết hạn')) && (
-                  <button
-                    type="button"
-                    onClick={() => setIsKeyModalOpen(true)}
-                    className="mt-1 text-[10px] text-amber-300 font-semibold underline block hover:text-amber-200"
-                  >
-                    👉 Khóa API Key đã hết hạn. Bấm vào đây để dán khóa mới!
-                  </button>
-                )}
-              </div>
-              <button onClick={() => setShowErrorToast(false)} className="text-red-400 hover:text-red-200">
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          )}
-        </div>
-
         {/* Augments Selection Card */}
-        <div className="bg-zinc-950/70 border border-zinc-800/80 rounded-lg p-2.5 flex flex-col gap-2 shadow-inner">
+        <div className="bg-zinc-950/70 border border-zinc-800/80 rounded-lg p-3 flex flex-col gap-2.5 shadow-inner">
           <div className="flex items-center justify-between border-b border-zinc-800/60 pb-1.5">
             <span className="text-[11px] font-semibold text-zinc-200 tracking-wide flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
@@ -650,7 +441,7 @@ export default function SourceTransformPanel() {
             <button
               onClick={handleSaveAugments}
               disabled={isSavingAugments || !augmentsLoaded}
-              className={`px-2.5 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1 border transition-all ${
+              className={`px-2.5 py-1 rounded text-[10px] font-semibold flex items-center gap-1 border transition-all ${
                 isSavingAugments
                   ? 'bg-amber-950/60 border-amber-600/60 text-amber-300 cursor-wait'
                   : 'bg-amber-600/90 hover:bg-amber-500 border-amber-500 text-white shadow-sm'
@@ -661,33 +452,75 @@ export default function SourceTransformPanel() {
             </button>
           </div>
 
-          {/* 3 Augment Slot Pickers */}
+          {/* Augment Slot Pickers */}
           {!augmentsLoaded ? (
-            <div className="flex items-center justify-center py-3 text-zinc-500 text-[11px] font-mono">
-              <RefreshCw className="w-3 h-3 animate-spin mr-1.5" /> Loading augments...
+            <div className="flex items-center justify-center py-4 text-zinc-500 text-[11px] font-mono">
+              <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1.5" /> Loading augments...
             </div>
           ) : (
-            <div className="flex flex-col gap-2">
-              {[0, 1, 2].map(slotIdx => (
-                <AugmentSlotPicker
-                  key={slotIdx}
-                  slotIndex={slotIdx}
-                  augmentsList={augmentsList}
-                  value={selectedAugments[slotIdx]}
-                  onChange={img => {
-                    setSelectedAugments(prev => {
-                      const next = [...prev];
-                      next[slotIdx] = img;
-                      return next;
-                    });
-                  }}
-                />
-              ))}
+            <div className="flex flex-col gap-2.5">
+              {[0, 1, 2].map(slotIdx => {
+                const currentMain = slotsState[slotIdx]?.main;
+                const mainAug = currentMain ? augmentsList.find(a => a.image === currentMain) : null;
+                const destinyTier = getDestinyTier(mainAug);
+
+                return (
+                  <div key={slotIdx} className="flex flex-col gap-2 p-2.5 rounded-lg bg-zinc-900/50 border border-zinc-800/70">
+                    <AugmentSlotPicker
+                      slotIndex={slotIdx}
+                      augmentsList={augmentsList}
+                      value={currentMain}
+                      onChange={img => {
+                        setSlotsState(prev => {
+                          const next = [...prev];
+                          const newMainAug = img ? augmentsList.find(a => a.image === img) : null;
+                          const isDest = getDestinyTier(newMainAug) !== null;
+                          next[slotIdx] = {
+                            main: img,
+                            bonus: isDest ? next[slotIdx]?.bonus || null : null,
+                          };
+                          return next;
+                        });
+                      }}
+                    />
+
+                    {/* Nếu slot này là Destiny Augment -> Hiện thêm ô Bonus Augment */}
+                    {destinyTier !== null && (
+                      <div className="ml-2 pl-2.5 pt-1.5 pb-1 border-l-2 border-amber-500/70 flex flex-col gap-1.5 bg-amber-950/15 rounded-r">
+                        <div className="flex items-center justify-between text-[10px] text-amber-300 font-medium">
+                          <span className="flex items-center gap-1 font-semibold">
+                            <Sparkles className="w-3 h-3 text-amber-400" />
+                            Bonus Augment ({destinyTier === 1 ? 'Bạc / Silver' : destinyTier === 2 ? 'Vàng / Gold' : 'Kim Cương / Prismatic'})
+                          </span>
+                          <span className="text-[9px] text-amber-400/80 font-mono">Cùng bậc</span>
+                        </div>
+                        <AugmentSlotPicker
+                          slotIndex={slotIdx}
+                          labelOverride={`Bonus Slot ${['I', 'II', 'III'][slotIdx]} (Cùng bậc)`}
+                          filterTier={destinyTier}
+                          augmentsList={augmentsList}
+                          value={slotsState[slotIdx]?.bonus || null}
+                          onChange={img => {
+                            setSlotsState(prev => {
+                              const next = [...prev];
+                              next[slotIdx] = {
+                                ...next[slotIdx],
+                                bonus: img,
+                              };
+                              return next;
+                            });
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
 
-          <div className="text-[9px] font-mono text-zinc-600 pt-0.5 border-t border-zinc-800/40">
-            Slot “Auto” uses live match augments. Save to sync overlay instantly.
+          <div className="text-[9px] font-mono text-zinc-500 pt-0.5 border-t border-zinc-800/40">
+            Slot “Auto” uses live match augments. Destiny augments allow picking an extra augment of the same tier.
           </div>
         </div>
 
@@ -798,15 +631,23 @@ export default function SourceTransformPanel() {
 // ============================================================
 interface AugmentSlotPickerProps {
   slotIndex: number;
+  labelOverride?: string;
+  filterTier?: number;
   augmentsList: AugmentItem[];
   value: string | null;          // image filename or null = Auto
   onChange: (img: string | null) => void;
 }
 
-function AugmentSlotPicker({ slotIndex, augmentsList, value, onChange }: AugmentSlotPickerProps) {
+function AugmentSlotPicker({
+  slotIndex,
+  labelOverride,
+  filterTier,
+  augmentsList,
+  value,
+  onChange,
+}: AugmentSlotPickerProps) {
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
-  // Vị trí dropdown (fixed so that it escapes overflow-y-auto containers)
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -815,18 +656,20 @@ function AugmentSlotPicker({ slotIndex, augmentsList, value, onChange }: Augment
   // Tìm thông tin augment hiện tại
   const currentAug = value ? augmentsList.find(a => a.image === value) : null;
 
-  // Filter logic: nếu có query thì tìm prefix/includes, nếu không thì hiện toàn bộ
+  // Filter logic: nếu có filterTier thì lọc theo tier (trừ khi có search query cụ thể)
   const filtered = useMemo((): AugmentItem[] => {
+    let base = augmentsList;
+    if (filterTier) {
+      base = augmentsList.filter(a => getAugmentTier(a) === filterTier);
+    }
     const q = query.trim().toLowerCase();
-    if (!q) return augmentsList;
-    // Ưu tiên: bắt đầu bằng query
-    const starts = augmentsList.filter(a => a.name.toLowerCase().startsWith(q));
-    // Phụ: chứa query (nhưng không bắt đầu)
-    const includes = augmentsList.filter(a =>
+    if (!q) return base;
+    const starts = base.filter(a => a.name.toLowerCase().startsWith(q));
+    const includes = base.filter(a =>
       !a.name.toLowerCase().startsWith(q) && a.name.toLowerCase().includes(q)
     );
     return [...starts, ...includes];
-  }, [augmentsList, query]);
+  }, [augmentsList, query, filterTier]);
 
   // Đóng khi click ngoài
   useEffect(() => {
@@ -844,7 +687,6 @@ function AugmentSlotPicker({ slotIndex, augmentsList, value, onChange }: Augment
     const rect = triggerRef.current.getBoundingClientRect();
     const spaceBelow = window.innerHeight - rect.bottom;
     const dropdownHeight = 260;
-    // Mở lên nếu không đủ chỗ bên dưới
     const openUpward = spaceBelow < dropdownHeight + 8 && rect.top > dropdownHeight;
     setDropdownStyle({
       position: 'fixed',
@@ -866,7 +708,7 @@ function AugmentSlotPicker({ slotIndex, augmentsList, value, onChange }: Augment
     setQuery('');
   };
 
-  const slotLabel = ['Augment I', 'Augment II', 'Augment III'][slotIndex] ?? `Slot ${slotIndex + 1}`;
+  const slotLabel = labelOverride || (['Augment I', 'Augment II', 'Augment III'][slotIndex] ?? `Slot ${slotIndex + 1}`);
   const IMG_BASE = '/TFT_DDragon/img/augment/';
 
   return (
@@ -879,7 +721,7 @@ function AugmentSlotPicker({ slotIndex, augmentsList, value, onChange }: Augment
         ref={triggerRef}
         type="button"
         onClick={handleOpen}
-        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded border text-left transition-all ${ 
+        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded border text-left transition-all ${
           isOpen
             ? 'border-amber-500/70 bg-zinc-900 ring-1 ring-amber-500/30'
             : 'border-zinc-700/80 bg-zinc-900/70 hover:border-zinc-600'
@@ -907,7 +749,7 @@ function AugmentSlotPicker({ slotIndex, augmentsList, value, onChange }: Augment
         <ChevronDown className={`w-3 h-3 text-zinc-500 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
-      {/* Dropdown panel — fixed-positioned để thoát overflow ancestor */}
+      {/* Dropdown panel */}
       {isOpen && (
         <div
           className="bg-zinc-950 border border-amber-600/40 rounded-lg shadow-2xl shadow-black/60 flex flex-col overflow-hidden"
@@ -973,9 +815,15 @@ function AugmentSlotPicker({ slotIndex, augmentsList, value, onChange }: Augment
                       el.style.display = 'none';
                     }}
                   />
-                  <span className={`text-[11px] truncate ${ value === aug.image ? 'text-amber-200 font-semibold' : 'text-zinc-300' }`}>
-                    {aug.name}
-                  </span>
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <span className={`text-[11px] truncate ${ value === aug.image ? 'text-amber-200 font-semibold' : 'text-zinc-300' }`}>
+                      {aug.name}
+                    </span>
+                    <span className="text-[9px] text-zinc-500 font-mono">
+                      {aug.tier === 1 ? 'Tier I (Bạc)' : aug.tier === 3 ? 'Tier III (Kim Cương)' : 'Tier II (Vàng)'}
+                      {aug.is_destiny ? ' • Destiny' : ''}
+                    </span>
+                  </div>
                   {value === aug.image && <CheckCircle2 className="w-3 h-3 text-amber-400 ml-auto shrink-0" />}
                 </button>
               ))

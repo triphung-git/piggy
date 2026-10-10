@@ -83,6 +83,36 @@ def test_api_augments_post_rejects_path_traversal(tmp_path):
         assert "Invalid augment identifier" in res.json().get("error", "")
 
 
+def test_custom_augments_allows_valid_destiny_expansion(tmp_path):
+    """Kiểm tra API chấp nhận cấu hình 4 lõi nâng cấp hợp lệ khi có Destiny augment."""
+    fake_config = tmp_path / "overlay_config.json"
+    fake_config.write_text("{}", encoding="utf-8")
+
+    client = TestClient(app)
+    token = get_current_token()
+    headers = {
+        "X-Studio-Token": token,
+        "Origin": "http://localhost:8080",
+        "Host": "localhost:8080",
+    }
+    with patch("tft_studio.api.hub.load_overlay_config", return_value={}), \
+         patch("tft_studio.api.hub.save_overlay_config", return_value={}):
+        res = client.post(
+            "/api/augments",
+            json={
+                "custom_augments": [
+                    "GoldenDestiny_II.png",
+                    "ThreeThrees_II.png",
+                    "AnimaCommander_II.png",
+                    "QuestForTheSeven_II.png",
+                ]
+            },
+            headers=headers,
+        )
+        assert res.status_code == 200
+        assert res.json().get("success") is True
+
+
 def test_validate_avatar_file_rejects_nonexistent_and_invalid_extension(tmp_path):
     """K4: Từ chối file không tồn tại hoặc đuôi file không phải ảnh."""
     missing = tmp_path / "missing.png"
