@@ -38,7 +38,10 @@ src_dir = BASE_DIR / "src"
 if src_dir.exists() and str(src_dir) not in sys.path:
     sys.path.insert(0, str(src_dir))
 
-import webview
+try:
+    import webview
+except ImportError:
+    webview = None  # type: ignore[assignment]
 
 from desktop.bridge import StudioBridge
 from tft_studio.api.hub import start_server
@@ -107,6 +110,12 @@ def ensure_prerequisites() -> None:
 
 
 def main() -> None:
+    if webview is None:
+        logger.error(
+            "Thư viện pywebview chưa được cài đặt. Vui lòng cài 'pip install pywebview>=5.0.0' hoặc khởi động Tauri v2 Desktop App."
+        )
+        sys.exit(1)
+
     print("══════════════════════════════════════════", flush=True)
     print("   ⚔️  TFT POST-MATCH STUDIO  ⚔️", flush=True)
     print("   Standalone Edition — Open Source", flush=True)

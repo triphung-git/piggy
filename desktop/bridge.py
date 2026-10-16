@@ -17,7 +17,10 @@ import time
 from pathlib import Path
 from typing import Any
 
-import webview
+try:
+    import webview
+except ImportError:
+    webview = None  # type: ignore[assignment]
 
 from tft_studio.api.hub import is_server_running, notify_sync, set_bridge_reference
 from tft_studio.core.config import AppConfig, load_overlay_config, save_overlay_config
@@ -701,8 +704,9 @@ class StudioBridge:
             return {"success": False, "error": "Cửa sổ chưa khởi tạo"}
 
         file_types = ("Image Files (*.png;*.jpg;*.jpeg;*.webp)", "All files (*.*)")
+        dialog_flag = getattr(webview, "OPEN_DIALOG", 10) if webview else 10
         result = self._dashboard_window.create_file_dialog(
-            webview.OPEN_DIALOG, allow_multiple=False, file_types=file_types
+            dialog_flag, allow_multiple=False, file_types=file_types
         )
 
         if result and len(result) > 0:
