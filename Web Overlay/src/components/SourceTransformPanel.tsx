@@ -12,6 +12,8 @@ import {
   ChevronDown,
   Save,
 } from 'lucide-react';
+import { StudioApi } from '../lib/api';
+
 
 // ---- Augment types ----
 interface AugmentItem {
@@ -135,18 +137,12 @@ export default function SourceTransformPanel() {
   useEffect(() => {
     const initAugments = async () => {
       try {
-        let list: AugmentItem[] = [];
-        if (window.pywebview?.api?.get_augments_list) {
-          list = await window.pywebview.api.get_augments_list();
-        } else {
-          const res = await fetch('/api/augments').then(r => r.json()).catch(() => null);
-          list = res?.augments || [];
-        }
+        const list = await StudioApi.getAugmentsList();
         setAugmentsList(list);
         setAugmentsLoaded(true);
 
         // Load custom_augments hiện tại từ config
-        const cfgRes = await fetch('/api/config').then(r => r.json()).catch(() => null);
+        const cfgRes = await StudioApi.getConfig();
         if (cfgRes?.custom_augments && Array.isArray(cfgRes.custom_augments)) {
           setSlotsState(parseCustomAugmentsToSlots(cfgRes.custom_augments, list));
         }
@@ -156,12 +152,7 @@ export default function SourceTransformPanel() {
       }
     };
 
-    if (window.pywebview) {
-      initAugments();
-    } else {
-      window.addEventListener('pywebviewready', initAugments);
-      initAugments();
-    }
+    initAugments();
 
     // Callback nhận thông báo từ Python Backend
     window.onAppStateUpdate = (data: any) => {
@@ -247,28 +238,13 @@ export default function SourceTransformPanel() {
         }
       }
 
-      if (window.pywebview?.api?.save_custom_augments) {
-        const res = await window.pywebview.api.save_custom_augments(flatList);
-        if (res?.success) {
-          setToastMessage('✓ Augments saved & overlay re-rendered!');
-          setShowSuccessToast(true);
-          setTimeout(() => setShowSuccessToast(false), 4000);
-        } else {
-          throw new Error(res?.error || 'Unknown error');
-        }
+      const res = await StudioApi.saveCustomAugments(flatList);
+      if (res?.success) {
+        setToastMessage('✓ Augments saved & overlay re-rendered!');
+        setShowSuccessToast(true);
+        setTimeout(() => setShowSuccessToast(false), 4000);
       } else {
-        const res = await fetch('/api/augments', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ custom_augments: flatList }),
-        }).then(r => r.json());
-        if (res?.success) {
-          setToastMessage('✓ Augments saved & overlay re-rendered!');
-          setShowSuccessToast(true);
-          setTimeout(() => setShowSuccessToast(false), 4000);
-        } else {
-          throw new Error(res?.error || 'Failed to save augments');
-        }
+        throw new Error(res?.error || 'Failed to save augments');
       }
     } catch (err: any) {
       alert('Error saving augments: ' + (err?.message || err));
@@ -288,45 +264,23 @@ export default function SourceTransformPanel() {
     const startTime = performance.now();
 
     try {
-      if (window.pywebview?.api?.render_overlay) {
-        setRenderProgress(45);
-        const res = await window.pywebview.api.render_overlay();
-        const elapsedSec = ((performance.now() - startTime) / 1000).toFixed(2);
+      setRenderProgress(45);
+      const res = await StudioApi.renderOverlay();
+      const elapsedSec = ((performance.now() - startTime) / 1000).toFixed(2);
 
-        setRenderProgress(100);
-        setTimeout(() => {
-          setIsRendering(false);
-          if (res?.success) {
-            setToastMessage(`✓ Overlay rendered: ${res.match_id} (${res.mode})`);
-            setToastDuration(`${elapsedSec}s`);
-            setShowSuccessToast(true);
-            setIsVisible(true);
-            setTimeout(() => setShowSuccessToast(false), 4500);
-          } else {
-            alert('Render Error: ' + (res?.error || 'Unknown error'));
-          }
-        }, 300);
-      } else {
-        setRenderProgress(40);
-        const res = await fetch('/api/render', {
-          method: 'POST',
-        }).then(r => r.json());
-
-        const elapsedSec = ((performance.now() - startTime) / 1000).toFixed(2);
-        setRenderProgress(100);
-        setTimeout(() => {
-          setIsRendering(false);
-          if (res?.success) {
-            setToastMessage(`✓ Overlay rendered: ${res.match_id || 'OK'}`);
-            setToastDuration(`${elapsedSec}s`);
-            setShowSuccessToast(true);
-            setIsVisible(true);
-            setTimeout(() => setShowSuccessToast(false), 4500);
-          } else {
-            alert('Render Error: ' + (res?.error || 'Unknown error'));
-          }
-        }, 300);
-      }
+      setRenderProgress(100);
+      setTimeout(() => {
+        setIsRendering(false);
+        if (res?.success) {
+          setToastMessage(`✓ Overlay rendered: ${res.match_id || 'OK'}`);
+          setToastDuration(`${elapsedSec}s`);
+          setShowSuccessToast(true);
+          setIsVisible(true);
+          setTimeout(() => setShowSuccessToast(false), 4500);
+        } else {
+          alert('Render Error: ' + (res?.error || 'Unknown error'));
+        }
+      }, 300);
     } catch (err: any) {
       setIsRendering(false);
       alert('Exception: ' + (err?.message || err));
@@ -336,23 +290,19 @@ export default function SourceTransformPanel() {
   const handleToggleVisibility = async () => {
     const nextVis = !isVisible;
     setIsVisible(nextVis);
-    if (window.pywebview?.api?.toggle_overlay_visibility) {
-      try {
-        await window.pywebview.api.toggle_overlay_visibility(nextVis);
-      } catch (e) {
-        console.warn('Toggle overlay error:', e);
-      }
+    try {
+      await StudioApi.toggleOverlayVisibility(nextVis);
+    } catch (e) {
+      console.warn('Toggle overlay error:', e);
     }
   };
 
   const handleClose = async () => {
     setIsClosed(true);
-    if (window.pywebview?.api?.close_panel) {
-      try {
-        await window.pywebview.api.close_panel();
-      } catch (e) {
-        console.warn('Close error:', e);
-      }
+    try {
+      await StudioApi.closePanel();
+    } catch (e) {
+      console.warn('Close error:', e);
     }
   };
 

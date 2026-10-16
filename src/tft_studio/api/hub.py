@@ -11,10 +11,13 @@ Chạy hoàn toàn cục bộ trên máy người dùng (localhost:8080 only).
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
+import os
 import re
 import secrets
+import shutil
 import threading
 import time
 from typing import Any
@@ -26,23 +29,36 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from tft_studio.core.config import AppConfig, load_overlay_config, save_overlay_config
-from tft_studio.core.paths import get_app_dir, resolve_resource
+from tft_studio.core.paths import get_app_dir, get_appdata_dir, resolve_resource
 from tft_studio.data.parser import get_ddragon_loader, validate_custom_augment
 
 logger = logging.getLogger("network_hub")
 
-# Token bí mật sinh ngẫu nhiên mỗi lần khởi động (S1, S2)
+# Token bí mật sinh ngẫu nhiên mỗi lần khởi động (S1, S2) hoặc đọc từ STUDIO_SESSION_TOKEN
 _STUDIO_TOKEN: str = secrets.token_urlsafe(32)
 
 
 def get_current_token() -> str:
     """Trả về token bí mật dùng để xác thực các thao tác ghi (S1, S2)."""
-    return _STUDIO_TOKEN
+    return os.environ.get("STUDIO_SESSION_TOKEN") or _STUDIO_TOKEN
 
 
-ALLOWED_HOST_PATTERN = re.compile(r"^(localhost|127\.0\.0\.1)(:\d+)?$", re.IGNORECASE)
+TAURI_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+    "tauri://localhost",
+    "http://tauri.localhost",
+    "https://tauri.localhost",
+]
+
+ALLOWED_HOST_PATTERN = re.compile(
+    r"^(localhost|127\.0\.0\.1|tauri\.localhost)(:\d+)?$", re.IGNORECASE
+)
 ALLOWED_ORIGIN_PATTERN = re.compile(
-    r"^(https?://(localhost|127\.0\.0\.1)(:\d+)?|null)$", re.IGNORECASE
+    r"^(https?://(localhost|127\.0\.0\.1)(:\d+)?|tauri://localhost|https?://tauri\.localhost|null)$",
+    re.IGNORECASE,
 )
 
 
@@ -83,10 +99,11 @@ class LocalNotifier:
 # FastAPI App — localhost only
 app = FastAPI(title="TFT Post-Match Studio (Standalone)", docs_url=None, redoc_url=None)
 
-# S3: CORS chỉ cho localhost/127.0.0.1, tuyệt đối không dùng '*'
+# S3: CORS cho localhost/127.0.0.1 và các origin hợp lệ của Tauri
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+    allow_origins=TAURI_ORIGINS,
+    allow_origin_regex=r"^(https?://(localhost|127\.0\.0\.1)(:\d+)?|tauri://localhost|https?://tauri\.localhost)$",
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
@@ -111,7 +128,8 @@ async def security_middleware(request: Request, call_next):
     # 3. Yêu cầu token cho các method ghi (POST, PUT, DELETE, PATCH)
     if request.method in ("POST", "PUT", "DELETE", "PATCH"):
         token = request.headers.get("x-studio-token", "")
-        if not token or not secrets.compare_digest(token, _STUDIO_TOKEN):
+        current_token = get_current_token()
+        if not token or not secrets.compare_digest(token, current_token):
             logger.warning(
                 "Unauthorized write attempt on %s without valid token", request.url.path
             )
@@ -121,6 +139,7 @@ async def security_middleware(request: Request, call_next):
             )
 
     return await call_next(request)
+
 
 
 notifier = LocalNotifier()
@@ -264,6 +283,145 @@ def get_riot_info():
         "region": cfg.region,
         "api_key_masked": masked,
         "has_api_key": bool(cfg.api_key),
+    }
+
+
+# --------------------------------------------------------------------- #
+# Endpoints điều khiển hệ thống & xuất ảnh
+# --------------------------------------------------------------------- #
+_uvicorn_server: uvicorn.Server | None = None
+
+
+def set_uvicorn_server(server: uvicorn.Server) -> None:
+    """Gán đối tượng Uvicorn server để có thể dừng server một cách an toàn."""
+    global _uvicorn_server
+    _uvicorn_server = server
+
+
+@app.post("/api/shutdown")
+def shutdown_server():
+    """
+    Dừng Uvicorn server một cách an toàn khi chuẩn bị cập nhật hoặc đóng ứng dụng.
+    Yêu cầu X-Studio-Token.
+    """
+    logger.info("Shutdown requested via /api/shutdown")
+
+    def _do_shutdown():
+        time.sleep(0.15)
+        global _uvicorn_server
+        if _uvicorn_server:
+            _uvicorn_server.should_exit = True
+        elif not os.environ.get("PYTEST_CURRENT_TEST"):
+            os._exit(0)
+
+    threading.Thread(target=_do_shutdown, daemon=True).start()
+    return {"success": True, "message": "Server is shutting down"}
+
+
+@app.post("/api/export")
+def export_via_browser():
+    """
+    Kích hoạt xuất ảnh PNG 1920x1080 qua Chromium headless (fallback).
+    Yêu cầu X-Studio-Token.
+    """
+    from tft_studio.render.exporter import export_html_to_png
+
+    appdata_dir = get_appdata_dir()
+    html_file = appdata_dir / "output" / "overlay.html"
+    if not html_file.exists():
+        return JSONResponse(
+            {"success": False, "error": "Chưa có file overlay.html để xuất ảnh"},
+            status_code=400,
+        )
+
+    timestamp = int(time.time())
+    output_png = appdata_dir / "output" / f"overlay_{timestamp}.png"
+    latest_png = appdata_dir / "output" / "overlay_latest.png"
+
+    ok = export_html_to_png(html_file, output_png, width=1920, height=1080)
+    if ok:
+        try:
+            shutil.copy2(output_png, latest_png)
+        except Exception as exc:
+            logger.warning("Could not copy to overlay_latest.png: %s", exc)
+        return {
+            "success": True,
+            "file_path": str(output_png.resolve()),
+            "latest_path": str(latest_png.resolve()),
+            "filename": output_png.name,
+        }
+
+    return JSONResponse(
+        {"success": False, "error": "Không thể kết xuất ảnh PNG qua browser"},
+        status_code=500,
+    )
+
+
+@app.post("/api/export/base64")
+async def export_base64_image(request: Request):
+    """
+    Nhận chuỗi ảnh PNG Base64 từ Frontend (kết xuất qua html-to-image ở độ phân giải 1920x1080),
+    giải mã và lưu vào get_appdata_dir() / "output" / f"overlay_{timestamp}.png".
+    Yêu cầu X-Studio-Token.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(
+            {"success": False, "error": "Invalid JSON body"}, status_code=400
+        )
+
+    image_b64 = body.get("image_base64") or body.get("image") or ""
+    if not image_b64:
+        return JSONResponse(
+            {"success": False, "error": "Missing image_base64 field in body"},
+            status_code=400,
+        )
+
+    if "," in image_b64:
+        image_b64 = image_b64.split(",", 1)[1]
+
+    try:
+        data = base64.b64decode(image_b64)
+    except Exception as exc:
+        return JSONResponse(
+            {"success": False, "error": f"Base64 decode failed: {exc}"},
+            status_code=400,
+        )
+
+    # Magic bytes check cho file PNG hợp lệ
+    if not data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return JSONResponse(
+            {"success": False, "error": "Decoded data is not a valid PNG image"},
+            status_code=400,
+        )
+
+    appdata_dir = get_appdata_dir()
+    output_dir = appdata_dir / "output"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = int(time.time())
+    file_path = output_dir / f"overlay_{timestamp}.png"
+    latest_path = output_dir / "overlay_latest.png"
+
+    try:
+        with open(file_path, "wb") as f:
+            f.write(data)
+        shutil.copy2(file_path, latest_path)
+    except Exception as exc:
+        logger.error("Failed to write exported PNG: %s", exc)
+        return JSONResponse(
+            {"success": False, "error": f"Write failed: {exc}"},
+            status_code=500,
+        )
+
+    logger.info("Base64 PNG successfully saved: %s (%d bytes)", file_path.name, len(data))
+    return {
+        "success": True,
+        "file_path": str(file_path.resolve()),
+        "latest_path": str(latest_path.resolve()),
+        "filename": file_path.name,
+        "size": len(data),
     }
 
 

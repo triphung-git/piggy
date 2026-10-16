@@ -13,7 +13,7 @@ import os
 from dataclasses import asdict, dataclass
 from typing import Any
 
-from tft_studio.core.paths import get_app_dir, get_bundle_dir
+from tft_studio.core.paths import get_appdata_dir, get_resource_dir
 
 try:
     from dotenv import load_dotenv
@@ -24,10 +24,11 @@ except ImportError:
 
 logger = logging.getLogger("config")
 
-BASE_DIR = get_app_dir()
-BUNDLE_DIR = get_bundle_dir()
+BASE_DIR = get_appdata_dir()
+BUNDLE_DIR = get_resource_dir()
 ENV_PATH = BASE_DIR / ".env"
 OVERLAY_CONFIG_PATH = BASE_DIR / "overlay_config.json"
+
 
 
 def reload_env() -> None:

@@ -16,12 +16,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from tft_studio.core.paths import get_app_dir
+from tft_studio.core.paths import get_app_dir, resolve_resource
 
 logger = logging.getLogger("data_parser")
 
 BASE_DIR = get_app_dir()
-DDRAGON_DATA_DIR = BASE_DIR / "TFT_DDragon" / "data"
+DDRAGON_DATA_DIR = resolve_resource("TFT_DDragon/data")
 
 # Tên chế độ chơi TFT phổ biến (Việt hóa)
 POPULAR_QUEUES: dict[int | str, str] = {

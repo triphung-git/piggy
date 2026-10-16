@@ -1,8 +1,8 @@
 """
 src/tft_studio/render/exporter.py
 ---------------------------------
-Dịch vụ xuất ảnh Overlay chuẩn 1920x1080 bằng Headless Chrome/Edge.
-Phát hiện tự động trình duyệt có sẵn trên Windows.
+Dịch vụ xuất ảnh Overlay chuẩn 1920x1080 bằng Headless Chromium.
+Phát hiện tự động trình duyệt có sẵn trên Windows, macOS và Linux.
 """
 
 from __future__ import annotations
@@ -11,34 +11,78 @@ import logging
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
-from tft_studio.core.paths import get_app_dir
+from tft_studio.core.paths import get_appdata_dir
 
 logger = logging.getLogger("export_service")
 
-BASE_DIR = get_app_dir()
+BASE_DIR = get_appdata_dir()
 OUTPUT_DIR = BASE_DIR / "output"
 
 
 def find_browser_executable() -> str | None:
-    """Tìm đường dẫn trình duyệt Chrome hoặc Edge có sẵn trên Windows."""
-    for name in ("chrome.exe", "msedge.exe", "chromium.exe"):
+    """Tìm đường dẫn trình duyệt Chromium có sẵn trên Windows, macOS hoặc Linux."""
+    # 1. Tìm qua PATH hệ thống
+    if sys.platform == "win32":
+        candidate_names = ["chrome.exe", "msedge.exe", "chromium.exe"]
+    elif sys.platform == "darwin":
+        candidate_names = [
+            "google-chrome",
+            "chromium",
+            "microsoft-edge",
+        ]
+    else:  # Linux
+        candidate_names = [
+            "google-chrome",
+            "google-chrome-stable",
+            "chromium",
+            "chromium-browser",
+            "microsoft-edge",
+            "microsoft-edge-stable",
+        ]
+
+    for name in candidate_names:
         found = shutil.which(name)
         if found:
             return found
 
-    default_paths = [
-        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
-        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
-        os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
-        os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\Edge\Application\msedge.exe"),
-    ]
-    for p in default_paths:
-        if os.path.isfile(p):
-            return p
+    # 2. Tìm theo danh sách đường dẫn mặc định của từng hệ điều hành
+    if sys.platform == "win32":
+        default_paths = [
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+            os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
+            os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\Edge\Application\msedge.exe"),
+        ]
+        for p in default_paths:
+            if os.path.isfile(p):
+                return p
+    elif sys.platform == "darwin":
+        mac_paths = [
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+            "/Applications/Chromium.app/Contents/MacOS/Chromium",
+            "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+        ]
+        for p in mac_paths:
+            if os.path.isfile(p):
+                return p
+    else:  # Linux
+        linux_paths = [
+            "/usr/bin/google-chrome",
+            "/usr/bin/google-chrome-stable",
+            "/usr/bin/chromium",
+            "/usr/bin/chromium-browser",
+            "/snap/bin/chromium",
+            "/usr/bin/microsoft-edge",
+        ]
+        for p in linux_paths:
+            if os.path.isfile(p):
+                return p
 
     return None
 

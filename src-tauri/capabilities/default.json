@@ -1,0 +1,31 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Default capabilities for TFT Post-Match Studio",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "updater:default",
+    "dialog:default",
+    "process:default",
+    "opener:default",
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        {
+          "name": "binaries/tft-backend",
+          "sidecar": true
+        }
+      ]
+    },
+    {
+      "identifier": "shell:allow-kill",
+      "allow": [
+        {
+          "name": "binaries/tft-backend",
+          "sidecar": true
+        }
+      ]
+    }
+  ]
+}

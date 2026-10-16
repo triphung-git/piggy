@@ -7,13 +7,14 @@ Phần mềm tạo overlay bảng xếp hạng hậu trận đấu và theo dõi
 Kết nối trực tiếp Riot Games API, tải dữ liệu trận đấu và hiển thị overlay độ phân giải 1080p trên OBS Studio qua kết nối WebSocket nội bộ, cập nhật trực tiếp nội dung DOM mà không cần tải lại trang.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Tauri: v2](https://img.shields.io/badge/Tauri-v2.0-24C8DB?logo=tauri&logoColor=white)](https://v2.tauri.app/)
 [![Python: 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![React: 19](https://img.shields.io/badge/React-19.0-61DAFB?logo=react&logoColor=black)](https://react.dev/)
 [![Tailwind CSS: v4](https://img.shields.io/badge/Tailwind_CSS-v4.0-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![Vite: 8](https://img.shields.io/badge/Vite-8.0-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
 [![OBS Studio Compatible](https://img.shields.io/badge/OBS_Studio-Tuong_thich-white?logo=obsstudio&logoColor=black)](https://obsproject.com/)
-[![Platform: Windows](https://img.shields.io/badge/He_dieu_hanh-Windows-0078D6?logo=windows&logoColor=white)](https://github.com/triphung-git/Teamfight-Tactics_Overlay)
+[![Platform: Windows | macOS | Linux](https://img.shields.io/badge/He_dieu_hanh-Windows%20%7C%20macOS%20%7C%20Linux-0078D6?logo=windows&logoColor=white)](https://github.com/triphung-git/piggy)
 
 [English](README.md) | [Tiếng Việt](README.vn.md)
 
@@ -75,11 +76,12 @@ Trong các giải đấu TFT, việc nhập thủ công thứ hạng 8 người 
   - Cập nhật thời gian thực qua WebSocket: client nhận tín hiệu, tải `/api/overlay-html` và thay đổi nội dung hiển thị kèm hiệu ứng mờ dần (CSS fade), không cần tải lại trình duyệt.
   - Hỗ trợ tiêu đề giải đấu, vòng đấu, tên trận, ảnh đại diện tùy chọn cho từng người chơi.
 
-- Bảng điều khiển Desktop:
-  - Ứng dụng desktop độc lập chạy trên nền tảng PyWebView và Microsoft Edge WebView2.
-  - Giao diện xây dựng bằng React 19, Tailwind CSS v4 và bộ icon Lucide.
-  - Chức năng theo dõi trực tiếp: đổi Riot ID nhanh, kiểm tra trạng thái khóa API, bật/tắt tự động quét trận và kích hoạt render thủ công.
-  - Có thể sử dụng trực tiếp qua cửa sổ desktop hoặc qua trình duyệt web tại `http://localhost:8080/app`.
+- Bảng điều khiển Desktop Đa nền tảng (Tauri v2 + FastAPI Sidecar):
+  - Lớp vỏ ứng dụng desktop siêu nhẹ xây dựng bằng Tauri v2 (Rust), quản lý tiến trình nền Python FastAPI độc lập.
+  - Hỗ trợ đầy đủ đa nền tảng: Windows x64, macOS (Apple Silicon arm64 & Intel x64), và Linux x64 (.AppImage & .deb).
+  - Giao diện xây dựng bằng React 19, TypeScript, Tailwind CSS v4 và bộ icon Lucide.
+  - Tự động kiểm tra bản cập nhật với hộp thoại xin phép người dùng (User Consent Modal): hiển thị Release Notes cùng 2 nút "Cập nhật ngay" hoặc "Để sau" để không làm gián đoạn buổi phát sóng trực tiếp.
+  - Có thể sử dụng trực tiếp qua cửa sổ desktop hoặc qua trình duyệt web tại `http://127.0.0.1:8080/app`.
 
 - Bộ chọn lõi nâng cấp và hỗ trợ ngôn ngữ DDragon:
   - Giao diện chọn nhanh 3 lõi nâng cấp (Bạc, Vàng, Kim Cương) kèm thanh tìm kiếm.
@@ -232,13 +234,26 @@ Teamfight-Tactics_Overlay/
 
 ## Hướng Dẫn Cài Đặt Nhanh
 
-### Yêu Cầu Tiên Quyết
+### Tải Bộ Cài Đặt Sẵn (Khuyến Nghị Cho Người Dùng Cuối)
 
-- Hệ điều hành: Windows 10 hoặc Windows 11 (64-bit).
-- Python: Phiên bản 3.11 trở lên ([python.org](https://www.python.org/downloads/)).
-- Node.js: Phiên bản 18 trở lên ([nodejs.org](https://nodejs.org/)).
-- OBS Studio: Phiên bản 28 trở lên ([obsproject.com](https://obsproject.com/)).
-- Microsoft WebView2 Runtime: Mặc định đã có trên Windows 10/11 hiện đại ([Tải tại đây nếu thiếu](https://developer.microsoft.com/en-us/microsoft-edge/webview2/)).
+Tải phiên bản mới nhất tương ứng với hệ điều hành của bạn từ trang [GitHub Releases](https://github.com/triphung-git/piggy/releases/latest):
+
+- **Windows x64**: Tải `TFT.Post-Match.Studio_x64-setup.exe` (bộ cài NSIS) hoặc bản di động `.msi`.
+- **macOS (Apple Silicon - Chip M1/M2/M3/M4)**: Tải `TFT.Post-Match.Studio_aarch64.dmg`.
+- **macOS (Intel)**: Tải `TFT.Post-Match.Studio_x64.dmg`.
+- **Linux x64**: Tải `TFT.Post-Match.Studio_amd64.AppImage` (hoặc `.deb`). Cấp quyền thực thi bằng lệnh `chmod +x` trước khi mở.
+
+*Mọi bản cài đặt đều tích hợp sẵn cơ chế kiểm tra và cập nhật tự động có xác nhận người dùng.*
+
+---
+
+### Yêu Cầu Tiên Quyết (Dành Cho Lập Trình Viên)
+
+- **Hệ điều hành**: Windows 10/11, macOS 12+, hoặc Ubuntu 22.04+ (x64 / arm64).
+- **Python**: Phiên bản 3.11 trở lên ([python.org](https://www.python.org/downloads/)).
+- **Node.js**: Phiên bản 20 trở lên ([nodejs.org](https://nodejs.org/)).
+- **Rust**: Stable Rust toolchain ([rustup.rs](https://rustup.rs/)).
+- **OBS Studio**: Phiên bản 28 trở lên ([obsproject.com](https://obsproject.com/)).
 
 ---
 
@@ -417,46 +432,64 @@ Kết nối tới `ws://127.0.0.1:8080/ws` để nhận các thông báo sự ki
 
 ---
 
-## Đóng Gói và Xuất Bản (.exe)
+## Đóng Gói và Xuất Bản Đa Nền Tảng
 
-### Đóng Gói Tự Động
+### 1. Đóng Gói Python Sidecar
 
-Chạy script có sẵn trên Windows:
+Mã nguồn Python FastAPI backend được biên dịch thành file nhị phân độc lập (`tft-backend-<target-triple>[.exe]`) lưu tại `src-tauri/binaries/`:
 
-```bat
-build_exe.bat
-```
-hoặc trên PowerShell:
-```powershell
-.\build_exe.ps1
+```bash
+# Tự động nhận diện kiến trúc hệ điều hành, tạo bộ icon và đóng gói onefile binary
+python scripts/build_sidecar.py
 ```
 
-Script sẽ tự động thực hiện:
-1. Biên dịch frontend React vào `Web Overlay/dist/`.
-2. Đóng gói ứng dụng Python bằng PyInstaller theo file cấu hình [studio.spec](file:///c:/Users/Admin/OneDrive%20-%20National%20Economics%20University/Documents/OVERLAY%20POSTMATCH%20TFT/Teamfight-Tactics_Overlay/studio.spec).
-3. Tập hợp file cấu hình, assets và dữ liệu DDragon vào thư mục `dist/TFT_PostMatch_Studio/`.
-4. Biên dịch bộ cài đặt Windows Setup `dist_setup/TFT_Studio_Setup.exe` nếu máy đã cài đặt Inno Setup 6.
+### 2. Biên Dịch Ứng Dụng Desktop (Tauri v2)
 
-### Đóng Gói Thủ Công
+```bash
+# 1. Biên dịch frontend React
+cd "Web Overlay"
+npm install
+npm run build
+cd ..
 
-1. Biên dịch Frontend:
-   ```bash
-   cd "Web Overlay"
-   npm run build
-   cd ..
-   ```
+# 2. Biên dịch bộ cài đặt desktop cho hệ điều hành hiện tại
+npx tauri build
+```
+Bộ cài đặt hoàn chỉnh sẽ nằm trong thư mục `src-tauri/target/release/bundle/`:
+- **Windows**: `.msi` và `setup.exe` (NSIS)
+- **macOS**: `.dmg` và `.app`
+- **Linux**: `.AppImage` và `.deb`
 
-2. Đóng gói file thực thi qua PyInstaller:
-   ```bash
-   pyinstaller --clean -y studio.spec
-   ```
-   Thư mục xuất file: `dist/TFT_PostMatch_Studio/TFT_PostMatch_Studio.exe`
+---
 
-3. Biên dịch bộ cài đặt Windows qua Inno Setup (tùy chọn):
-   ```bash
-   "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
-   ```
-   File cài đặt đầu ra: `dist_setup/TFT_Studio_Setup.exe`
+### 3. Tạo Khóa Ký Số Tauri Updater & Phát Hành GitHub Releases
+
+Tauri v2 tự động xác thực chữ ký mật mã trước khi cho phép tải và cài đặt bất kỳ bản cập nhật nào vào máy tính người dùng.
+
+#### Tạo Cặp Khóa Ký Số
+Sử dụng công cụ Tauri CLI Signer:
+```bash
+npx tauri signer generate -w ~/.tauri/piggy.key
+```
+Lệnh này sẽ tạo ra:
+1. **Khóa bí mật (Private Key)**: Lưu tại `~/.tauri/piggy.key`.
+2. **Khóa công khai (Public Key)**: In ra trên màn hình terminal. Sao chép chuỗi khóa công khai này dán vào trường `plugins.updater.pubkey` trong file `src-tauri/tauri.conf.json`.
+
+#### Thiết Lập GitHub Secrets
+Để GitHub Actions tự động biên dịch, ký số và phát hành đa nền tảng, thêm 2 Secret sau vào repository GitHub (Settings > Secrets and variables > Actions):
+- `TAURI_SIGNING_PRIVATE_KEY`: Toàn bộ nội dung file `~/.tauri/piggy.key`.
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: Mật khẩu bạn đã nhập khi tạo khóa (hoặc để trống nếu không đặt mật khẩu).
+
+#### Phát Hành Phiên Bản Mới
+Chỉ cần gắn thẻ Git tag theo chuẩn semantic version và đẩy lên GitHub:
+```bash
+git tag v1.0.1
+git push origin v1.0.1
+```
+Quy trình tự động hóa `.github/workflows/release.yml` trên GitHub Actions sẽ:
+1. Chạy matrix đồng thời trên Windows x64, macOS Apple Silicon (arm64), macOS Intel (x64) và Linux x64.
+2. Đóng gói sidecar, ký số toàn bộ file cài đặt và tạo manifest `latest.json`.
+3. Tự động xuất bản các tệp cài đặt lên mục Releases của GitHub.
 
 ---
 

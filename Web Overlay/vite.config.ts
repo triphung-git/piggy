@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       tailwindcss(),
-      viteSingleFile(),
+      ...(process.env.SINGLE_FILE === 'true' ? [viteSingleFile()] : []),
       figmaSiteConfiguration(siteConfiguration),
       figmaErrorOverlayReplay(),
       figmaReactRefreshBoundaryFallback(),

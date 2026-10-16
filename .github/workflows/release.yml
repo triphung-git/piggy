@@ -1,0 +1,106 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-publish:
+    name: Build & Release (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: "windows-x86_64"
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            args: "--target x86_64-pc-windows-msvc"
+
+          - platform: "macos-arm64"
+            os: macos-latest
+            target: aarch64-apple-darwin
+            args: "--target aarch64-apple-darwin"
+
+          - platform: "macos-x86_64"
+            os: macos-13
+            target: x86_64-apple-darwin
+            args: "--target x86_64-apple-darwin"
+
+          - platform: "linux-x86_64"
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            args: "--target x86_64-unknown-linux-gnu"
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller Pillow
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Linux System Dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Build Python Sidecar Binary
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          python scripts/build_sidecar.py
+
+      - name: Verify Sidecar Binary Exists (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          if (-not (Test-Path "src-tauri/binaries/tft-backend-${{ matrix.target }}.exe")) {
+            throw "Sidecar binary not found!"
+          }
+
+      - name: Verify Sidecar Binary Exists (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          test -f "src-tauri/binaries/tft-backend-${{ matrix.target }}" || exit 1
+          chmod +x "src-tauri/binaries/tft-backend-${{ matrix.target }}"
+
+      - name: Install Frontend Dependencies
+        working-directory: "Web Overlay"
+        run: npm ci
+
+      - name: Build Tauri Desktop Application & Publish Release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "TFT Post-Match Studio v__VERSION__"
+          releaseBody: "See the assets below to download and install for Windows, macOS, or Linux."
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}

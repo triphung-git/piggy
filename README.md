@@ -7,13 +7,14 @@ Post-match esports overlay and match tracking tool for Teamfight Tactics (TFT).
 Connect to the Riot Games API, retrieve match records, and display 1080p overlays directly in OBS Studio using WebSocket-driven DOM updates without page reloads.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Tauri: v2](https://img.shields.io/badge/Tauri-v2.0-24C8DB?logo=tauri&logoColor=white)](https://v2.tauri.app/)
 [![Python: 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![React: 19](https://img.shields.io/badge/React-19.0-61DAFB?logo=react&logoColor=black)](https://react.dev/)
 [![Tailwind CSS: v4](https://img.shields.io/badge/Tailwind_CSS-v4.0-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![Vite: 8](https://img.shields.io/badge/Vite-8.0-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
 [![OBS Studio Compatible](https://img.shields.io/badge/OBS_Studio-Compatible-white?logo=obsstudio&logoColor=black)](https://obsproject.com/)
-[![Platform: Windows](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white)](https://github.com/triphung-git/Teamfight-Tactics_Overlay)
+[![Platform: Windows | macOS | Linux](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-0078D6?logo=windows&logoColor=white)](https://github.com/triphung-git/piggy)
 
 [English](README.md) | [Tiếng Việt](README.vn.md)
 
@@ -75,11 +76,12 @@ In competitive TFT tournaments, displaying post-match lobbies, player placements
   - Updates via WebSocket notification: client fetches `/api/overlay-html` and replaces container markup with a CSS opacity fade, avoiding page reloads.
   - Displays tournament headers, stage indicators, player avatars, placement badges, and trait tiers.
 
-- Desktop Control Panel:
-  - Standalone desktop application running on PyWebView and Microsoft Edge WebView2.
-  - Interface built with React 19, Tailwind CSS v4, and Lucide icons.
-  - Includes live tracker controls: switch Riot ID, check API key status, toggle background polling, and trigger manual renders.
-  - Accessible via native desktop window or via web browser at `http://localhost:8080/app`.
+- Desktop Control Panel (Tauri v2 + FastAPI Sidecar):
+  - Ultra-lightweight desktop shell built with Tauri v2 (Rust) managing an isolated Python FastAPI sidecar binary.
+  - Multi-platform support: Windows x64, macOS (Apple Silicon arm64 & Intel x64), and Linux x64 (.AppImage & .deb).
+  - Modern interface built with React 19, TypeScript, Tailwind CSS v4, and Lucide icons.
+  - In-app Auto-Update with User Consent: Seamless background check via `@tauri-apps/plugin-updater` with changelog modal offering "Cập nhật ngay" (Update now) or "Để sau" (Later) to protect live broadcasts.
+  - Accessible via native desktop window or via browser at `http://127.0.0.1:8080/app`.
 
 - Augment Selector and Data Dragon localization:
   - Visual selector for Hextech Augments (Silver, Gold, Prismatic) with search functionality.
@@ -232,13 +234,26 @@ Teamfight-Tactics_Overlay/
 
 ## Quick Start Guide
 
-### Prerequisites
+### Download Pre-built Installers (Recommended)
 
-- OS: Windows 10 or Windows 11 (64-bit).
-- Python: Version 3.11 or higher ([python.org](https://www.python.org/downloads/)).
-- Node.js: Version 18 or higher ([nodejs.org](https://nodejs.org/)).
-- OBS Studio: Version 28 or higher ([obsproject.com](https://obsproject.com/)).
-- Microsoft WebView2 Runtime: Installed by default on modern Windows 10/11 (or downloadable via [Microsoft](https://developer.microsoft.com/en-us/microsoft-edge/webview2/)).
+Get the latest release for your operating system from the [GitHub Releases](https://github.com/triphung-git/piggy/releases/latest) page:
+
+- **Windows x64**: Download `TFT.Post-Match.Studio_x64-setup.exe` (NSIS Installer) or portable `.msi`.
+- **macOS (Apple Silicon - M1/M2/M3/M4)**: Download `TFT.Post-Match.Studio_aarch64.dmg`.
+- **macOS (Intel)**: Download `TFT.Post-Match.Studio_x64.dmg`.
+- **Linux x64**: Download `TFT.Post-Match.Studio_amd64.AppImage` (or `.deb`). Run `chmod +x` before launching.
+
+*All releases include automatic update checking with user consent verification.*
+
+---
+
+### Prerequisites (For Developers Building from Source)
+
+- **OS**: Windows 10/11, macOS 12+, or Ubuntu 22.04+ (x64 / arm64).
+- **Python**: Version 3.11 or higher ([python.org](https://www.python.org/downloads/)).
+- **Node.js**: Version 20 or higher ([nodejs.org](https://nodejs.org/)).
+- **Rust**: Stable Rust toolchain ([rustup.rs](https://rustup.rs/)).
+- **OBS Studio**: Version 28 or higher ([obsproject.com](https://obsproject.com/)).
 
 ---
 
@@ -421,44 +436,62 @@ Connect to `ws://127.0.0.1:8080/ws` to receive push events:
 
 ## Build and Packaging
 
-### Automated Packaging
+### 1. Build the Python Sidecar
 
-Run the packaging script:
+The Python FastAPI backend is compiled into a standalone binary (`tft-backend-<target-triple>[.exe]`) located in `src-tauri/binaries/`:
 
-```bat
-build_exe.bat
-```
-or in PowerShell:
-```powershell
-.\build_exe.ps1
+```bash
+# Automatically detects current host architecture, generates app icons, and compiles onefile binary
+python scripts/build_sidecar.py
 ```
 
-The script will:
-1. Compile the React frontend into `Web Overlay/dist/`.
-2. Package the Python application with PyInstaller using [studio.spec](file:///c:/Users/Admin/OneDrive%20-%20National%20Economics%20University/Documents/OVERLAY%20POSTMATCH%20TFT/Teamfight-Tactics_Overlay/studio.spec).
-3. Assemble configuration files, assets, and DDragon data into `dist/TFT_PostMatch_Studio/`.
-4. Compile the Windows installer `dist_setup/TFT_Studio_Setup.exe` if Inno Setup 6 is installed.
+### 2. Build the Desktop Application (Tauri v2)
 
-### Manual Build Steps
+```bash
+# 1. Build the React frontend
+cd "Web Overlay"
+npm install
+npm run build
+cd ..
 
-1. Build frontend:
-   ```bash
-   cd "Web Overlay"
-   npm run build
-   cd ..
-   ```
+# 2. Build the desktop installer for your current platform
+npx tauri build
+```
+The output installers will be located in `src-tauri/target/release/bundle/`:
+- **Windows**: `.msi` and `setup.exe` (NSIS)
+- **macOS**: `.dmg` and `.app`
+- **Linux**: `.AppImage` and `.deb`
 
-2. Package with PyInstaller:
-   ```bash
-   pyinstaller --clean -y studio.spec
-   ```
-   Output: `dist/TFT_PostMatch_Studio/TFT_PostMatch_Studio.exe`
+---
 
-3. Compile installer (optional, requires Inno Setup 6):
-   ```bash
-   "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
-   ```
-   Output: `dist_setup/TFT_Studio_Setup.exe`
+### 3. Tauri Updater Signing Keys & GitHub Releases
+
+Tauri v2 automatically verifies cryptographic signatures before applying any in-app updates.
+
+#### Generating Signing Keys
+Run the Tauri CLI signer tool to generate a new key pair:
+```bash
+npx tauri signer generate -w ~/.tauri/piggy.key
+```
+This generates:
+1. **Private Key**: Saved to `~/.tauri/piggy.key`.
+2. **Public Key**: Displayed in console output. Copy this public key into `src-tauri/tauri.conf.json` under `plugins.updater.pubkey`.
+
+#### Configuring GitHub Repository Secrets
+To enable automated cross-platform builds and signed releases via GitHub Actions, add these repository secrets:
+- `TAURI_SIGNING_PRIVATE_KEY`: The full contents of your `~/.tauri/piggy.key`.
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: The password chosen when creating the key (or empty if unencrypted).
+
+#### Releasing a New Version
+Push a semantic version tag to trigger the multi-platform release pipeline:
+```bash
+git tag v1.0.1
+git push origin v1.0.1
+```
+The `.github/workflows/release.yml` GitHub Actions workflow will:
+1. Matrix-build across Windows x64, macOS Apple Silicon (arm64), macOS Intel (x64), and Linux x64.
+2. Sign all bundles and generate `latest.json` updater manifest.
+3. Automatically publish the artifacts to the GitHub Release.
 
 ---
 

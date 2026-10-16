@@ -1,0 +1,61 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "TFT Post-Match Studio",
+  "version": "1.0.0",
+  "identifier": "com.triphung.tftstudio",
+  "build": {
+    "frontendDist": "../Web Overlay/dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm --prefix \"Web Overlay\" run dev",
+    "beforeBuildCommand": "npm --prefix \"Web Overlay\" run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "TFT Post-Match Studio",
+        "label": "main",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 960,
+        "minHeight": 640,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "capabilities": ["default"],
+      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost blob: data: http://127.0.0.1:8080 http://localhost:8080; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:8080 ws://127.0.0.1:8080 http://localhost:8080 ws://localhost:8080 https://github.com https://objects.githubusercontent.com;"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "createUpdaterArtifacts": true,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico",
+      "icons/icon.png"
+    ],
+    "resources": [
+      "../templates/**",
+      "../assets/**",
+      "../TFT_DDragon/**",
+      "../overlay_config.json",
+      "../.env.example"
+    ],
+    "externalBin": [
+      "binaries/tft-backend"
+    ]
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/triphung-git/piggy/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU1RTFGRkVFNkM3NjUwOTcKUldTWFVIWnM3di9oVmVhOUV1V0VZdXRTby9rbktjK1pNUEJhUjd5ZmMrbXgzY2VpampuTGJtamsK"
+    }
+  }
+}
