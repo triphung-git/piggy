@@ -61,6 +61,10 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
 
+      - name: Update Cargo Dependencies
+        working-directory: src-tauri
+        run: cargo update
+
       - name: Install Linux System Dependencies
         if: runner.os == 'Linux'
         run: |
