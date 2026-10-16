@@ -1,13 +1,13 @@
 <div align="center">
 
-# ⚔️ TFT Post-Match Studio
+# TFT Post-Match Studio
 
-**Production-ready Post-Match Esports Broadcast Overlay & Live Companion for Teamfight Tactics (TFT)**
+Post-match esports overlay and match tracking tool for Teamfight Tactics (TFT).
 
-Connect to the Riot Games API, process real-time match data, and broadcast broadcast-grade 1080p overlays directly into OBS Studio with zero reload flicker.
+Connect to the Riot Games API, retrieve match records, and display 1080p overlays directly in OBS Studio using WebSocket-driven DOM updates without page reloads.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Python: 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Python: 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![React: 19](https://img.shields.io/badge/React-19.0-61DAFB?logo=react&logoColor=black)](https://react.dev/)
 [![Tailwind CSS: v4](https://img.shields.io/badge/Tailwind_CSS-v4.0-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
@@ -15,107 +15,117 @@ Connect to the Riot Games API, process real-time match data, and broadcast broad
 [![OBS Studio Compatible](https://img.shields.io/badge/OBS_Studio-Compatible-white?logo=obsstudio&logoColor=black)](https://obsproject.com/)
 [![Platform: Windows](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white)](https://github.com/triphung-git/Teamfight-Tactics_Overlay)
 
-[ 🇬🇧 English ](README.md) • [ 🇻🇳 Tiếng Việt ](README.vn.md)
+[English](README.md) | [Tiếng Việt](README.vn.md)
 
 </div>
 
 ---
 
-## 📑 Table of Contents
+## Table of Contents
 
-- [Overview](#-overview)
-- [Key Features](#-key-features)
-- [System Architecture](#️-system-architecture)
-- [Tech Stack](#-tech-stack)
-- [Project Structure](#-project-structure)
-- [Quick Start Guide](#-quick-start-guide)
+- [Overview](#overview)
+- [Key Features](#key-features)
+- [System Architecture](#system-architecture)
+- [Tech Stack](#tech-stack)
+- [Project Structure](#project-structure)
+- [Quick Start Guide](#quick-start-guide)
   - [Prerequisites](#prerequisites)
   - [Installation from Source](#installation-from-source)
-  - [Portable / Installer Setup](#portable--installer-setup)
-- [Configuration](#-configuration)
+  - [Portable and Installer Setup](#portable-and-installer-setup)
+- [Configuration](#configuration)
   - [Environment Variables (.env)](#environment-variables-env)
   - [Overlay Configuration (overlay_config.json)](#overlay-configuration-overlay_configjson)
-- [OBS Studio Integration](#-obs-studio-integration)
-- [REST API & WebSocket Protocol](#-rest-api--websocket-protocol)
-- [Build & Packaging](#-build--packaging)
-- [Troubleshooting](#-troubleshooting)
-- [Contributing](#-contributing)
-- [Legal Disclaimer](#-legal-disclaimer)
-- [License](#-license)
+- [OBS Studio Integration](#obs-studio-integration)
+- [REST API and WebSocket Protocol](#rest-api-and-websocket-protocol)
+  - [REST Endpoints](#rest-endpoints)
+  - [Authentication and Security](#authentication-and-security)
+  - [WebSocket Protocol (/ws)](#websocket-protocol-ws)
+- [Build and Packaging](#build-and-packaging)
+  - [Automated Packaging](#automated-packaging)
+  - [Manual Build Steps](#manual-build-steps)
+- [Testing and Quality](#testing-and-quality)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [Legal Disclaimer](#legal-disclaimer)
+- [License](#license)
 
 ---
 
-## 🌟 Overview
+## Overview
 
-**TFT Post-Match Studio** is an open-source, broadcast-oriented studio overlay solution designed for esports tournament organizers, casters, and streamers. 
+TFT Post-Match Studio is an open-source overlay solution designed for esports tournament organizers, casters, and streamers.
 
-In competitive TFT tournaments, displaying post-match lobbies, player placements, units, items, and augments manually is slow, error-prone, and visually inconsistent. This studio automates the entire pipeline:
-1. **Pulls official match telemetry** directly from the Riot Games API within seconds of match conclusion.
-2. **Translates raw game identifiers** (champions, traits, items, augments) via an offline Data Dragon database.
-3. **Pushes instant updates to OBS Studio** via a local WebSocket connection utilizing a seamless DOM-swap technique (no page refresh, no black frames, no stream flicker).
-4. **Operates 100% locally** on the host machine without external database dependencies or cloud hosting fees.
-
----
-
-## ✨ Key Features
-
-- **⚡ Official Riot Games API Integration**:
-  - Resolves Summoner PUUID and fetches recent TFT match records automatically.
-  - Built-in token-bucket rate limiter ensuring zero `429 Too Many Requests` bans.
-  - Multi-region routing support: SEA (`VN`, `SG`, `TW`, `TH`, `PH`), Asia (`KR`, `JP`), Americas (`NA`, `BR`, `LAN`, `LAS`, `OCE`), Europe (`EUW`, `EUNE`, `TR`, `RU`).
-
-- **📺 Broadcast-Grade OBS Overlay (1920×1080)**:
-  - Pixel-perfect HTML5/CSS3 esports broadcast layout (custom-tailored for HOSC and competitive tournaments).
-  - **Zero-Flicker Real-time Updates**: Pushes WebSocket notifications triggering seamless DOM-swapping with hardware-accelerated CSS fade animations.
-  - Support for custom tournament headers, stage indicators, player avatars, and stage titles.
-
-- **🎛️ Modern Desktop Control Panel**:
-  - Embedded desktop application powered by **PyWebView** and Microsoft Edge WebView2.
-  - Frontend built with **React 19**, **Tailwind CSS v4**, and **Lucide Icons**.
-  - In-app Live Tracker: Update Riot ID on the fly, monitor API quota, toggle auto-polling, and trigger immediate manual renders.
-
-- **🧬 Augments Selector & DDragon Localization**:
-  - Visual selector for Hextech Augments (Silver, Gold, Prismatic) with search and English/Vietnamese names.
-  - Comprehensive Data Dragon cache supporting active sets, champions, traits, items, and tacticians.
-
-- **📸 Headless Chrome PNG Rendering**:
-  - Instant generation of 1080p high-resolution PNG snapshots via Headless Chromium/Edge for quick social media posting.
-
-- **📂 Live File Watcher**:
-  - Automatically re-renders overlays upon saving `overlay_config.json`, editing `.env`, or dropping new player avatar photos into `assets/avatars/`.
-
-- **🔒 Standalone & Privacy-Preserving**:
-  - Binds strictly to `localhost` (`127.0.0.1:8080`). Your Riot API Key and configuration remain solely on your local device.
+In competitive TFT tournaments, displaying post-match lobbies, player placements, units, items, and augments manually takes time and introduces entry errors. This application automates match retrieval and presentation:
+1. Pulls match records directly from the Riot Games API after game completion.
+2. Resolves game identifiers (champions, traits, items, augments) using a local Data Dragon cache.
+3. Pushes instant updates to OBS Studio over a local WebSocket connection using a DOM replacement mechanism that prevents screen flickering.
+4. Runs locally on the host machine without external database dependencies or cloud hosting fees.
 
 ---
 
-## 🏗️ System Architecture
+## Key Features
+
+- Riot Games API integration:
+  - Resolves player PUUID and downloads recent TFT match records automatically.
+  - Implements a token-bucket rate limiter to avoid HTTP 429 rate limit errors.
+  - Supports regional routing for SEA (VN, SG, TW, TH, PH), Asia (KR, JP), Americas (NA, BR, LAN, LAS, OCE), and Europe (EUW, EUNE, TR, RU).
+
+- OBS Overlay (1920x1080):
+  - HTML5 and CSS3 esports broadcast layout designed for 1080p canvas resolution.
+  - Updates via WebSocket notification: client fetches `/api/overlay-html` and replaces container markup with a CSS opacity fade, avoiding page reloads.
+  - Displays tournament headers, stage indicators, player avatars, placement badges, and trait tiers.
+
+- Desktop Control Panel:
+  - Standalone desktop application running on PyWebView and Microsoft Edge WebView2.
+  - Interface built with React 19, Tailwind CSS v4, and Lucide icons.
+  - Includes live tracker controls: switch Riot ID, check API key status, toggle background polling, and trigger manual renders.
+  - Accessible via native desktop window or via web browser at `http://localhost:8080/app`.
+
+- Augment Selector and Data Dragon localization:
+  - Visual selector for Hextech Augments (Silver, Gold, Prismatic) with search functionality.
+  - Local Data Dragon cache supporting active sets, champions, traits, items, and tacticians in English (en_US) and Vietnamese (vi_VN).
+
+- PNG snapshot export:
+  - Generates 1080p PNG images using Headless Chromium or Microsoft Edge for post-match social media reporting.
+
+- Live file watcher:
+  - Monitors `overlay_config.json`, `.env`, and `assets/avatars/`, triggering a re-render 0.5s after file modifications.
+
+- Localhost security:
+  - Binds strictly to `127.0.0.1:8080`. API keys and match data remain on your local machine.
+  - Protected write operations requiring `X-Studio-Token` authentication.
+
+---
+
+## System Architecture
 
 ```mermaid
 flowchart TB
     subgraph Host["Local Host Machine (127.0.0.1)"]
-        subgraph UI["Desktop Presentation Layer"]
-            CP["Desktop Control Panel<br/>(PyWebView + React 19 + Tailwind v4)"]
+        subgraph UI["Presentation Layer"]
+            CP["Desktop Control Panel<br/>(PyWebView + React 19 + Tailwind CSS v4)"]
             PW["Overlay Preview Window<br/>(Edge Chromium WebView2)"]
         end
 
-        subgraph Core["Python Backend Core"]
-            Bridge["StudioBridge (desktop/bridge.py)<br/>• IPC Bridge & State Coordinator"]
-            Watcher["FileWatcher (backend/file_watcher.py)<br/>• Debounced .env / config / avatar monitoring"]
-            MatchSvc["MatchService (backend/match_service.py)<br/>• Async match orchestrator & auto-polling"]
-            Parser["DataParser (backend/data_parser.py)<br/>• DDragon localization & stats cleanup"]
-            Gen["OverlayGenerator (backend/overlay_generator.py)<br/>• Jinja-style HTML/CSS template compiler"]
-            Export["ExportService (backend/export_service.py)<br/>• Headless Chromium 1080p PNG export"]
+        subgraph Core["Core Python Package (src/tft_studio)"]
+            Bridge["StudioBridge (desktop/bridge.py)<br/>IPC Bridge and State Coordinator"]
+            Config["AppConfig (tft_studio.core.config)<br/>Config loader and region router"]
+            Paths["Paths (tft_studio.core.paths)<br/>Resource and runtime path resolution"]
+            MatchSvc["MatchService (tft_studio.service.match_service)<br/>Match orchestrator and auto-polling"]
+            Watcher["FileWatcher (tft_studio.service.file_watcher)<br/>Debounced file and avatar monitor"]
+            Parser["DataParser (tft_studio.data.parser)<br/>DDragon loader and match parsing"]
+            Gen["OverlayGenerator (tft_studio.render.generator)<br/>1080p HTML overlay template compiler"]
+            Export["ExportService (tft_studio.render.exporter)<br/>Headless Chromium 1080p PNG export"]
         end
 
-        subgraph Server["Network & Streaming Hub"]
-            FastAPI["FastAPI HTTP Server (:8080)<br/>• Static Asset Server (/assets, /TFT_DDragon)<br/>• REST Endpoints (/api/status, /api/render)"]
-            WS["WebSocket Server (/ws)<br/>• Zero-latency local broadcast notifier"]
+        subgraph Server["Local Server and Streaming Hub"]
+            FastAPI["FastAPI HTTP Server (:8080)<br/>Static mounts (/overlay, /assets, /TFT_DDragon, /app)<br/>REST Endpoints (/api/status, /api/render, ...)"]
+            WS["WebSocket Server (/ws)<br/>Local broadcast notifier"]
         end
     end
 
     subgraph External["External Ecosystem"]
-        RiotAPI["Riot Games Developer API<br/>(Account-v1 & TFT-Match-v1)"]
+        RiotAPI["Riot Games Developer API<br/>Account-v1 and TFT-Match-v1"]
         OBS["OBS Studio<br/>Browser Source (http://localhost:8080/overlay)"]
     end
 
@@ -135,86 +145,100 @@ flowchart TB
 
 ### Event Sequence
 
-1. **Trigger**: User clicks **Render** in the Control Panel (or FileWatcher detects a file change).
-2. **Fetch & Clean**: `MatchService` queries Riot API (or loads latest local cache), runs through `DataParser` against local `TFT_DDragon` definitions.
-3. **Compile**: `OverlayGenerator` writes fresh DOM markup to `output/overlay.html`.
-4. **Notify**: `NetworkHub` broadcasts an `OVERLAY_RENDERED` event across the local WebSocket channel.
-5. **Seamless Swap**: Connected OBS Browser Sources fetch `/api/overlay-html` and perform a smooth, opacity-faded DOM swap without reloading the browser window.
+1. **Trigger**: User clicks **Render** in the Control Panel, an external tool sends `POST /api/render`, or FileWatcher detects configuration changes.
+2. **Fetch and Parse**: `MatchService` queries Riot API (or loads local cached match data) and runs raw telemetry through `DataParser` against `TFT_DDragon` assets.
+3. **Compile**: `OverlayGenerator` compiles fresh markup and writes to `output/overlay.html`.
+4. **Notify**: `LocalNotifier` broadcasts an `OVERLAY_RENDERED` event to connected WebSocket clients.
+5. **DOM Swap**: OBS Browser Source receives the event, fetches `/api/overlay-html`, and updates the DOM with a CSS opacity fade without reloading the browser source.
 
 ---
 
-## 💻 Tech Stack
+## Tech Stack
 
 | Domain | Technologies | Details |
 |---|---|---|
-| **Backend & Core** | Python 3.10+, FastAPI, Uvicorn, WebSockets | Asynchronous event loop, high-performance local server |
-| **Desktop Runtime** | PyWebView 6.0+, Microsoft Edge WebView2 | Lightweight native Windows desktop shell, zero Electron overhead |
-| **Frontend UI** | React 19, TypeScript, Vite 8, Tailwind CSS v4 | High-performance control panel with modern glassmorphism aesthetic |
-| **UI Components** | Lucide React, vite-plugin-singlefile | Vector icons, single-bundle distribution capability |
-| **Data & Game Assets** | Riot Games API, Data Dragon (Set 18+) | Multi-regional routing, offline champion & augment assets |
-| **Broadcasting** | OBS Studio Browser Source, Chromium Headless | 1920×1080 60fps real-time DOM-swap & PNG screenshot generation |
-| **Packaging & CI** | PyInstaller 6.5+, Inno Setup 6 | Single executable bundle and Windows setup wizard |
+| **Backend Core** | Python 3.11+, FastAPI, Uvicorn, WebSockets | Asynchronous event loop, local HTTP server, and WebSocket hub |
+| **Desktop Shell** | PyWebView 6.0+, Microsoft Edge WebView2 | Lightweight Windows desktop shell without Electron overhead |
+| **Frontend UI** | React 19, TypeScript 5.7, Vite 8, Tailwind CSS v4 | High-performance desktop control panel |
+| **UI Components** | Lucide React, vite-plugin-singlefile | Vector icon set and single-bundle distribution capability |
+| **Game Data** | Riot Games API, Data Dragon (Set 18+) | Multi-region routing and offline asset definitions |
+| **Broadcasting** | OBS Studio Browser Source, Chromium Headless | 1920x1080 60fps overlay and PNG screenshot generator |
+| **Packaging** | PyInstaller 6.5+, Inno Setup 6 | Standalone folder executable bundle and Windows setup wizard |
 
 ---
 
-## 🗂️ Project Structure
+## Project Structure
 
 ```text
 Teamfight-Tactics_Overlay/
-├── backend/                        # Python backend logic & services
-│   ├── config.py                   # AppConfig dataclass & region router mapping
-│   ├── data_parser.py              # DDragon parser, raw-to-clean match transform
-│   ├── export_service.py           # Headless Chrome/Edge PNG screenshot exporter
-│   ├── file_watcher.py             # Debounced file system watcher for live hot-reload
-│   ├── match_service.py            # Riot API coordinator & background polling thread
-│   ├── network_hub.py              # FastAPI server, static mounts & WebSocket hub
-│   ├── overlay_generator.py        # 1080p HTML overlay template compiler
-│   ├── paths.py                    # Unified path resolution (Dev vs PyInstaller bundle)
-│   └── riot_client.py              # Thread-safe Riot API HTTP client with rate limiter
-├── desktop/                        # Desktop wrapper & IPC
-│   ├── app.py                      # Application entrypoint & PyWebView window manager
-│   ├── bridge.py                   # Bidirectional IPC bridge (Python ↔ React)
-│   └── local_server.py             # Server bootstrapper
+├── src/                            # Python application source tree
+│   └── tft_studio/                 # Main tft_studio package
+│       ├── api/                    # HTTP and WebSocket endpoints
+│       │   └── hub.py              # FastAPI server, security middleware, and WebSocket notifier
+│       ├── core/                   # Configuration and path resolution
+│       │   ├── config.py           # AppConfig dataclass, region mapping, and JSON helpers
+│       │   └── paths.py            # Path resolver for dev and PyInstaller environments
+│       ├── data/                   # Data parsing and validation
+│       │   └── parser.py           # DDragonLoader, match transformer, and augment validation
+│       ├── render/                 # Overlay generation and image export
+│       │   ├── generator.py        # Jinja-style HTML overlay compiler
+│       │   └── exporter.py         # Headless Chromium 1080p PNG exporter
+│       ├── riot/                   # Riot Games API client
+│       │   └── client.py           # Thread-safe client with token-bucket rate limiter
+│       └── service/                # Business services and background tasks
+│           ├── match_service.py    # Match coordinator and polling thread
+│           └── file_watcher.py     # Debounced file system watcher for live hot-reload
+├── desktop/                        # Desktop application entrypoint
+│   ├── app.py                      # PyWebView window manager (Control Panel and Preview)
+│   └── bridge.py                   # Bidirectional IPC bridge between Python and React
 ├── Web Overlay/                    # Frontend React control panel
 │   ├── src/
-│   │   ├── components/             # React control components (SourceTransformPanel, etc.)
+│   │   ├── components/             # React UI components (SourceTransformPanel, etc.)
 │   │   ├── App.tsx                 # Root application component
-│   │   ├── index.css               # Tailwind CSS v4 imports & theme variables
+│   │   ├── index.css               # Tailwind CSS v4 imports
 │   │   └── main.tsx                # React DOM entrypoint
-│   ├── package.json                # Node.js dependencies & build scripts
-│   └── vite.config.ts              # Vite 8 build pipeline
-├── templates/                      # Overlay HTML/CSS templates
-│   ├── overlay.html                # Base tournament overlay HTML skeleton
-│   └── overlay.css                 # 1080p broadcast layout & animation stylesheets
-├── assets/                         # Tournament branding & graphical assets
-│   ├── League_Spartan/             # Bundled typography
+│   ├── package.json                # Node.js dependencies and scripts
+│   ├── tsconfig.json               # TypeScript compiler configuration
+│   └── vite.config.ts              # Vite 8 build pipeline with Tailwind v4
+├── templates/                      # Overlay templates
+│   ├── overlay.html                # Base overlay HTML markup
+│   └── overlay.css                 # 1080p layout and animation stylesheets
+├── assets/                         # Graphic assets and typography
+│   ├── League_Spartan/             # Bundled font family
 │   ├── avatars/                    # Custom player portrait overrides
 │   ├── app_icon.ico                # Application executable icon
 │   └── background.png              # Default 1080p tournament backdrop
 ├── TFT_DDragon/                    # Riot Data Dragon game assets (offline cache)
-│   ├── data/                       # Multilingual JSON definitions (vi_VN, en_US)
+│   ├── data/                       # Multilingual definitions (vi_VN, en_US)
 │   └── img/                        # Champions, traits, items, augments, tacticians
 ├── output/                         # Generated artifacts (overlay.html, PNG snapshots, cache)
-├── .env.example                    # Environment template for Riot API credentials
-├── overlay_config.json             # Tournament branding & augment configuration
+├── tests/                          # Automated test suite
+│   ├── unit/                       # Unit tests (bridge, config, parser, generator, riot client)
+│   ├── security/                   # Security tests (input validation, network isolation)
+│   ├── fixtures/                   # Sample match payloads and mock responses
+│   └── golden/                     # Golden master HTML and CSS references
+├── pyproject.toml                  # Python package configuration and tool settings (Ruff, Pytest)
 ├── requirements.txt                # Python runtime dependencies
-├── studio.spec                     # PyInstaller specification for single-folder/exe build
+├── studio.spec                     # PyInstaller build specification
 ├── installer.iss                   # Inno Setup 6 compilation script for Windows installer
-├── build_exe.bat / build_exe.ps1   # Automated one-click packaging scripts
-└── run_app.bat / run_app.ps1       # One-click launch scripts
+├── build_exe.bat / build_exe.ps1   # Packaging scripts
+├── run_app.bat / run_app.ps1       # Launch scripts
+├── create_desktop_shortcut.ps1     # Windows desktop shortcut generator
+├── overlay_config.json             # Tournament branding and augment overrides
+└── .env.example                    # Environment template for Riot API credentials
 ```
 
 ---
 
-## ⚡ Quick Start Guide
+## Quick Start Guide
 
 ### Prerequisites
 
-- **OS**: Windows 10 or Windows 11 (64-bit).
-- **Python**: Version 3.10 or higher ([python.org](https://www.python.org/downloads/)).
-- **Node.js**: Version 18 or higher ([nodejs.org](https://nodejs.org/)).
-- **OBS Studio**: Version 28 or higher ([obsproject.com](https://obsproject.com/)).
-- **Microsoft WebView2 Runtime**: Pre-installed on modern Windows 10/11 (or downloadable via [Microsoft](https://developer.microsoft.com/en-us/microsoft-edge/webview2/)).
+- OS: Windows 10 or Windows 11 (64-bit).
+- Python: Version 3.11 or higher ([python.org](https://www.python.org/downloads/)).
+- Node.js: Version 18 or higher ([nodejs.org](https://nodejs.org/)).
+- OBS Studio: Version 28 or higher ([obsproject.com](https://obsproject.com/)).
+- Microsoft WebView2 Runtime: Installed by default on modern Windows 10/11 (or downloadable via [Microsoft](https://developer.microsoft.com/en-us/microsoft-edge/webview2/)).
 
 ---
 
@@ -229,9 +253,9 @@ cd Teamfight-Tactics_Overlay
 #### 2. Set up Python virtual environment
 ```bash
 python -m venv .venv
-# Activate on Windows (cmd/PowerShell)
+# Activate on Windows
 .venv\Scripts\activate
-# Install dependencies
+# Install runtime dependencies
 pip install -r requirements.txt
 ```
 
@@ -245,10 +269,9 @@ cd ..
 
 #### 4. Configure credentials
 ```bash
-# Create .env from template
 copy .env.example .env
 ```
-Open `.env` and provide your Riot API Key and Riot ID:
+Open `.env` and set your Riot API Key and Riot ID:
 ```env
 RIOT_API_KEY=RGAPI-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 RIOT_ID=YourName#TAG
@@ -259,25 +282,25 @@ REGION=VN
 ```bash
 python -m desktop.app
 ```
-*Or execute the pre-configured script:*
+Alternatively, execute the launch script:
 ```bash
 run_app.bat
-# or PowerShell:
+# or in PowerShell:
 .\run_app.ps1
 ```
 
 ---
 
-### Portable / Installer Setup
+### Portable and Installer Setup
 
-If you build or download the pre-packaged release:
-1. Run `dist_setup/TFT_Studio_Setup.exe` to install to your machine, or extract the portable folder from `dist/TFT_PostMatch_Studio/`.
+If you build or download a packaged release:
+1. Run `dist_setup/TFT_Studio_Setup.exe` to install, or extract the portable folder from `dist/TFT_PostMatch_Studio/`.
 2. Launch `TFT_PostMatch_Studio.exe`.
-3. Open the **Control Panel** window, input your Riot API Key directly in the UI, and you are ready to render.
+3. Open the Control Panel, input your Riot API Key directly into the UI, and start rendering.
 
 ---
 
-## ⚙️ Configuration
+## Configuration
 
 ### Environment Variables (`.env`)
 
@@ -285,13 +308,13 @@ If you build or download the pre-packaged release:
 |---|---|---|---|---|
 | `RIOT_API_KEY` | `string` | *(required)* | API Key from [Riot Developer Portal](https://developer.riotgames.com). | `RGAPI-ab12-cd34-...` |
 | `RIOT_ID` | `string` | *(required)* | In-game player identity in `GameName#TagLine` format. | `Faker#KR1` |
-| `REGION` | `string` | `VN` | Server platform/region routing code. | `VN`, `KR`, `NA`, `EUW` |
-| `MATCH_COUNT` | `integer` | `5` | Number of recent matches to fetch and parse (1–20). | `5` |
-| `LANGUAGE` | `string` | `vi_VN` | DDragon translation dictionary for items/traits. | `vi_VN` or `en_US` |
+| `REGION` | `string` | `VN` | Platform and regional routing code. | `VN`, `KR`, `NA`, `EUW` |
+| `MATCH_COUNT` | `integer` | `5` | Number of recent matches to fetch (1-20). | `5` |
+| `LANGUAGE` | `string` | `vi_VN` | Data Dragon translation dictionary for items and traits. | `vi_VN` or `en_US` |
 | `OUTPUT_DIR` | `string` | `output` | Directory where HTML and PNG artifacts are saved. | `output` |
 
-> ℹ️ **Notice on Riot Development API Keys:**
-> Personal Development Keys expire every **24 hours**. When expired, simply generate a new key on the [Riot Developer Dashboard](https://developer.riotgames.com/) and update it through the desktop Control Panel or by editing `.env`.
+> Note on Riot Development API Keys:
+> Personal Development Keys expire every 24 hours. When expired, generate a new key on the [Riot Developer Dashboard](https://developer.riotgames.com/) and update it in the Control Panel or `.env`.
 
 ---
 
@@ -309,37 +332,37 @@ If you build or download the pre-packaged release:
     "PlayerOne#VN2": "assets/avatars/player_one.png"
   },
   "custom_augments": [
-    "QuestForTheSeven_II.png",
-    "AnimaCommander_II.png",
-    "ThreeThrees_II.png"
+    "GoldenDestiny_II.png",
+    "A-Magical-Roll-II.png",
+    "GoldenTicket3.png"
   ]
 }
 ```
 
-- **`tournament_title`**: Main title displayed on the upper broadcast banner.
-- **`stage_title`**: Sub-banner description (e.g., *Group Stage*, *Semi-Finals*).
-- **`player_avatars`**: Map player summoner names or Riot IDs to custom avatar images stored in `assets/avatars/`. If unassigned, the system gracefully falls back to the player's in-game Little Legend (Tactician).
-- **`custom_augments`**: Array of 3 augment image filenames. If set, overrides the match augment data. If set to `null` or left empty, uses actual match augment telemetry.
+- `tournament_title`: Main title displayed on the upper broadcast banner.
+- `stage_title`: Sub-banner description (for example: Group Stage, Quarterfinals, Finals).
+- `player_avatars`: Maps player summoner names or Riot IDs to image files in `assets/avatars/`. If unassigned, the system displays the player's in-game Little Legend.
+- `custom_augments`: Array of augment image filenames. When populated, overrides match augment data. Set to an empty array `[]` to use actual match telemetry.
 
 ---
 
-## 📺 OBS Studio Integration
+## OBS Studio Integration
 
-Follow these steps to link the live overlay to your streaming scenes:
+Follow these steps to add the overlay to your streaming scenes:
 
-1. Launch **OBS Studio**.
-2. Under **Sources**, click **`+` (Add Source)** and select **Browser**.
-3. Configure the Browser Source settings:
-   - **URL**: `http://localhost:8080/overlay`
-   - **Width**: `1920`
-   - **Height**: `1080`
-   - **FPS**: `60` (or `30`)
-   - ✅ Check **Shutdown source when not visible**
-   - ✅ Check **Refresh browser when scene becomes active**
-4. Click **OK**.
-5. When you click **Render** in the desktop Control Panel, OBS will automatically receive the updated scoreboard without page refreshes or blinking frames.
+1. Launch OBS Studio.
+2. Under Sources, click Add Source (+) and select Browser.
+3. Configure settings:
+   - URL: `http://localhost:8080/overlay`
+   - Width: `1920`
+   - Height: `1080`
+   - FPS: `60` (or `30`)
+   - Check **Shutdown source when not visible**
+   - Check **Refresh browser when scene becomes active**
+4. Click OK.
+5. When you click **Render** in the desktop Control Panel, OBS automatically updates the scoreboard without full page reloads.
 
-```
+```text
 +-------------------------------------------------------------------+
 |  OBS Studio Canvas (1920x1080)                                    |
 |                                                                   |
@@ -357,130 +380,169 @@ Follow these steps to link the live overlay to your streaming scenes:
 
 ---
 
-## 🔌 REST API & WebSocket Protocol
+## REST API and WebSocket Protocol
 
-When running, the application hosts a local HTTP server at `http://127.0.0.1:8080`.
+When running, the server listens at `http://127.0.0.1:8080`.
 
 ### REST Endpoints
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/api/status` | Heartbeat endpoint returning service status and client URLs. |
-| `GET` | `/api/state` | Retrieves entire application state (cached matches, active match, configs). |
-| `POST` | `/api/render` | Programmatically triggers an overlay compilation and sync event. |
-| `GET` | `/api/config` | Reads the current `overlay_config.json`. |
-| `POST` | `/api/config` | Updates tournament config and broadcasts the change via WebSocket. |
-| `GET` | `/api/riot` | Returns current masked Riot ID and API key status. |
-| `POST` | `/api/riot/fetch` | Triggers an immediate asynchronous Riot API query for the active player. |
-| `GET` | `/api/augments` | Returns list of all Hextech Augments sorted alphabetically from DDragon. |
-| `POST` | `/api/augments` | Saves 3 custom augment overrides and triggers instant recompilation. |
-| `GET` | `/api/overlay-html` | Returns inner HTML body content of `overlay.html` for DOM-swapping. |
-| `GET` | `/overlay` | Main endpoint loaded by OBS Studio Browser Source. |
+| `GET` | `/api/status` | Returns server status, operating mode, and client URLs. |
+| `GET` | `/api/state` | Returns application state including cached matches, active player, and config. |
+| `POST` | `/api/render` | Triggers overlay compilation and broadcasts update event. Requires `X-Studio-Token`. |
+| `GET` | `/api/config` | Reads current `overlay_config.json`. |
+| `POST` | `/api/config` | Updates overlay configuration and notifies clients. Requires `X-Studio-Token`. |
+| `GET` | `/api/riot` | Returns masked Riot ID and API key validation status. |
+| `POST` | `/api/riot/fetch` | Queries Riot API for recent matches of active player. Requires `X-Studio-Token`. |
+| `GET` | `/api/augments` | Returns list of Hextech Augments from Data Dragon. |
+| `POST` | `/api/augments` | Saves custom augment overrides and recompiles overlay. Requires `X-Studio-Token`. |
+| `GET` | `/api/overlay-html` | Returns inner HTML body content of `overlay.html` for DOM replacement. |
+| `GET` | `/overlay` | Main overlay endpoint loaded by OBS Browser Source. |
 | `GET` | `/overlay.css` | Serves compiled CSS stylesheet. |
-| `GET` | `/overlay_latest.png` | Serves the latest high-resolution 1080p rendered PNG snapshot. |
+| `GET` | `/overlay_latest.png` | Serves latest 1080p rendered PNG snapshot. |
+| `GET` | `/app` | Serves the web-based Control Panel interface in a standard browser. |
+
+### Authentication and Security
+
+- Mutating HTTP methods (`POST`, `PUT`, `DELETE`, `PATCH`) require the `X-Studio-Token` header. The token is generated randomly on application boot to prevent unauthorized local requests.
+- Requests with non-localhost `Host` or `Origin` headers are blocked by the security middleware with HTTP 403 Forbidden.
+- CORS policy restricts cross-origin access strictly to `localhost` and `127.0.0.1`.
 
 ### WebSocket Protocol (`/ws`)
 
-Connect to `ws://127.0.0.1:8080/ws` to receive real-time push events:
-
-- **`INITIAL_STATE`**: Dispatched upon connection with current configurations.
-- **`OVERLAY_RENDERED`**: Dispatched whenever a match is rendered. Carries `{ "match_id": "...", "timestamp": ... }`.
-- **`CONFIG_CHANGED`**: Dispatched when `overlay_config.json` changes.
-- **`PING`**: Periodic keepalive ping.
+Connect to `ws://127.0.0.1:8080/ws` to receive push events:
+- `INITIAL_STATE`: Sent upon connection with current configurations.
+- `OVERLAY_RENDERED`: Sent when an overlay renders. Payload includes `{ "match_id": "...", "timestamp": ... }`.
+- `CONFIG_CHANGED`: Sent when `overlay_config.json` updates.
+- `PING`: Keepalive message sent every 30 seconds of inactivity.
 
 ---
 
-## 📦 Build & Packaging
+## Build and Packaging
 
-You can package the entire application into a standalone Windows executable (`.exe`) with no runtime dependencies on Python or Node.js.
+### Automated Packaging
 
-### One-Click Packaging
-
-Run the provided Windows batch or PowerShell script:
+Run the packaging script:
 
 ```bat
 build_exe.bat
 ```
-*or via PowerShell:*
+or in PowerShell:
 ```powershell
 .\build_exe.ps1
 ```
 
+The script will:
+1. Compile the React frontend into `Web Overlay/dist/`.
+2. Package the Python application with PyInstaller using [studio.spec](file:///c:/Users/Admin/OneDrive%20-%20National%20Economics%20University/Documents/OVERLAY%20POSTMATCH%20TFT/Teamfight-Tactics_Overlay/studio.spec).
+3. Assemble configuration files, assets, and DDragon data into `dist/TFT_PostMatch_Studio/`.
+4. Compile the Windows installer `dist_setup/TFT_Studio_Setup.exe` if Inno Setup 6 is installed.
+
 ### Manual Build Steps
 
-1. **Compile React Bundle**:
+1. Build frontend:
    ```bash
    cd "Web Overlay"
    npm run build
    cd ..
    ```
 
-2. **Generate Application Executable (PyInstaller)**:
+2. Package with PyInstaller:
    ```bash
    pyinstaller --clean -y studio.spec
    ```
-   *Output directory:* `dist/TFT_PostMatch_Studio/TFT_PostMatch_Studio.exe`
+   Output: `dist/TFT_PostMatch_Studio/TFT_PostMatch_Studio.exe`
 
-3. **Build Windows Installer (Inno Setup)**:
-   If Inno Setup 6 is installed, compile `installer.iss`:
+3. Compile installer (optional, requires Inno Setup 6):
    ```bash
    "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
    ```
-   *Output installer:* `dist_setup/TFT_Studio_Setup.exe`
+   Output: `dist_setup/TFT_Studio_Setup.exe`
 
 ---
 
-## 🛠️ Troubleshooting
+## Testing and Quality
+
+Install development dependencies:
+```bash
+pip install -e ".[dev]"
+```
+
+Run unit and security tests:
+```bash
+# Run all tests
+pytest
+
+# Run unit tests only
+pytest tests/unit
+
+# Run security tests only
+pytest tests/security
+
+# Generate test coverage report
+pytest --cov=tft_studio --cov-report=term-missing
+```
+
+Run linter and formatter:
+```bash
+# Check code style with Ruff
+ruff check .
+
+# Format code
+ruff format .
+```
+
+---
+
+## Troubleshooting
 
 | Issue | Root Cause | Solution |
 |---|---|---|
-| **Riot API 401 / 403 Forbidden** | API Key is expired, invalid, or malformed. | Visit [developer.riotgames.com](https://developer.riotgames.com), regenerate your key, and paste it into the Control Panel or `.env`. |
-| **Riot API 404 Account Not Found** | Incorrect Game Name or Tagline. | Ensure format matches exactly: `GameName#TAG` (e.g., `Faker#KR1`). Double-check spelling and region. |
-| **Riot API 429 Rate Limit Exceeded** | Calling the API too frequently. | The built-in client automatically backs off. Wait a minute or reduce `MATCH_COUNT`. |
-| **OBS Overlay shows blank or black** | Server not running or overlay not rendered. | Launch `run_app.bat`, click **Render** in the Control Panel, and confirm `http://localhost:8080/overlay` loads in your web browser. |
-| **Control Panel fails to open** | Missing Microsoft WebView2 runtime. | Download and install the [Microsoft Edge WebView2 Evergreen Bootstrapper](https://developer.microsoft.com/en-us/microsoft-edge/webview2/). |
-| **PNG Export Failed** | Headless Chrome/Edge executable not found. | Ensure Google Chrome or Microsoft Edge is installed in default Program Files directories. |
-| **Font rendering issues** | Missing font assets. | Verify `assets/League_Spartan/` contains the bundled `.ttf` font files. |
+| Riot API 401 / 403 Forbidden | API key expired, invalid, or malformed. | Generate a new key at [developer.riotgames.com](https://developer.riotgames.com) and update it in the Control Panel or `.env`. |
+| Riot API 404 Account Not Found | Game Name or TagLine is incorrect. | Use exact `GameName#TAG` format (for example: `Faker#KR1`). Verify server region. |
+| Riot API 429 Rate Limit | Rate limit exceeded. | The client automatically backs off. Wait 60 seconds or decrease `MATCH_COUNT`. |
+| OBS Overlay displays black or empty screen | Server not running or match not yet rendered. | Start the app, click **Render** in the Control Panel, and confirm `http://localhost:8080/overlay` opens in a web browser. |
+| Control Panel window fails to open | Missing WebView2 runtime. | Install the [Microsoft Edge WebView2 Evergreen Bootstrapper](https://developer.microsoft.com/en-us/microsoft-edge/webview2/). |
+| PNG export fails | Headless Chrome or Edge not found. | Install Google Chrome or Microsoft Edge in the default Program Files directory. |
+| Font display fallback | Font files missing. | Verify `assets/League_Spartan/` contains the bundled `.ttf` font files. |
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
-Contributions from the community are warmly welcome! Whether you are submitting a bug fix, new overlay themes, or translations:
+Contributions are welcome. To contribute:
 
-1. **Fork the Repository**: Click `Fork` on GitHub.
-2. **Create a Feature Branch**:
+1. Fork the repository on GitHub.
+2. Create a feature branch:
    ```bash
-   git checkout -b feat/custom-overlay-theme
+   git checkout -b feature/your-feature-name
    ```
-3. **Commit Changes**: Follow [Conventional Commits](https://www.conventionalcommits.org/):
+3. Run tests and linting before committing:
    ```bash
-   git commit -m "feat(overlay): add support for custom scoreboard layouts"
+   pytest
+   ruff check .
    ```
-4. **Push to GitHub**:
+4. Commit changes using Conventional Commits:
    ```bash
-   git push origin feat/custom-overlay-theme
+   git commit -m "feat(render): add custom scoreboard layout option"
    ```
-5. **Open a Pull Request**: Submit your PR with a concise description of changes and test steps.
+5. Push to GitHub and open a Pull Request explaining changes and verification steps.
 
 ---
 
-## 📜 Legal Disclaimer
+## Legal Disclaimer
 
-**TFT Post-Match Studio** is an unofficial community project and is not endorsed by, directly affiliated with, maintained, authorized, or sponsored by Riot Games, Inc.
+TFT Post-Match Studio is an unofficial community project and is not endorsed by, directly affiliated with, maintained, authorized, or sponsored by Riot Games, Inc.
 
-Teamfight Tactics, League of Legends, and Riot Games are trademarks or registered trademarks of Riot Games, Inc. in the U.S. and/or other countries. All game assets, artwork, champion icons, item imagery, and Data Dragon resources remain the intellectual property of Riot Games.
+Teamfight Tactics, League of Legends, and Riot Games are trademarks or registered trademarks of Riot Games, Inc. All game assets, artwork, champion icons, item imagery, and Data Dragon resources remain the intellectual property of Riot Games.
 
 ---
 
-## 📄 License
+## License
 
-Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for complete terms and copyright notices.
+Distributed under the MIT License. See [LICENSE](LICENSE) for full license text and copyright notices.
 
-```
+```text
 Copyright (c) 2026 TFT Post-Match Studio Contributors
 ```
-
-<div align="center">
-  <sub>Engineered with precision for the global Teamfight Tactics broadcast community.</sub>
-</div>
