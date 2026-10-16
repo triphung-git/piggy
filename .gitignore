@@ -56,4 +56,5 @@ htmlcov/
 
 # === Tauri & Rust ===
 src-tauri/target/
+src-tauri/binaries/
 *.key
