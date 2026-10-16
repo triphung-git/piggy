@@ -12,18 +12,9 @@ import {
   ChevronDown,
   Save,
 } from 'lucide-react';
-import { StudioApi } from '../lib/api';
-
+import { StudioApi, type AugmentItem } from '../lib/api';
 
 // ---- Augment types ----
-interface AugmentItem {
-  id: string;
-  name: string;   // English name from DDragon
-  image: string;  // Filename, e.g. "BronzeForLife_II.png"
-  tier?: number;  // 1, 2, or 3
-  is_destiny?: boolean;
-}
-
 interface AugmentSlotState {
   main: string | null;   // image filename or null = Auto
   bonus: string | null;  // image filename or null = Auto
@@ -31,7 +22,8 @@ interface AugmentSlotState {
 
 export function getDestinyTier(aug: AugmentItem | null | undefined): 1 | 2 | 3 | null {
   if (!aug) return null;
-  const s = `${aug.name} ${aug.image} ${aug.id}`.toLowerCase();
+  const augIdStr = String(aug.id ?? '');
+  const s = `${aug.name} ${aug.image} ${augIdStr}`.toLowerCase();
   if (s.includes('silverdestiny') || s.includes('silver destiny') || s.includes('vận mệnh bạc')) return 1;
   if (s.includes('goldendestiny') || s.includes('gold destiny') || s.includes('vận mệnh vàng')) return 2;
   if (s.includes('prismaticdestiny') || s.includes('prismatic destiny') || s.includes('vận mệnh kim cương')) return 3;
@@ -41,10 +33,11 @@ export function getDestinyTier(aug: AugmentItem | null | undefined): 1 | 2 | 3 |
 export function getAugmentTier(aug: AugmentItem | null | undefined): number {
   if (!aug) return 2;
   if (aug.tier) return aug.tier;
-  const s = `${aug.name} ${aug.image} ${aug.id}`.toLowerCase();
-  if (s.includes('_iii') || s.includes('-iii') || s.includes('3.png') || aug.id.endsWith('3') || s.includes('prismatic')) return 3;
-  if (s.includes('_ii') || s.includes('-ii') || s.includes('2.png') || aug.id.endsWith('2') || s.includes('gold')) return 2;
-  if (s.includes('_i') || s.includes('-i') || s.includes('1.png') || aug.id.endsWith('1') || s.includes('silver')) return 1;
+  const augIdStr = String(aug.id ?? '');
+  const s = `${aug.name} ${aug.image} ${augIdStr}`.toLowerCase();
+  if (s.includes('_iii') || s.includes('-iii') || s.includes('3.png') || augIdStr.endsWith('3') || s.includes('prismatic')) return 3;
+  if (s.includes('_ii') || s.includes('-ii') || s.includes('2.png') || augIdStr.endsWith('2') || s.includes('gold')) return 2;
+  if (s.includes('_i') || s.includes('-i') || s.includes('1.png') || augIdStr.endsWith('1') || s.includes('silver')) return 1;
   return 2;
 }
 

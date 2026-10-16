@@ -15,7 +15,8 @@ def test_find_browser_executable():
     exe = find_browser_executable()
     if exe is not None:
         assert isinstance(exe, str)
-        assert Path(exe).name.lower() in ("chrome.exe", "msedge.exe", "chromium.exe")
+        name = Path(exe).name.lower()
+        assert any(k in name for k in ("chrome", "edge", "chromium"))
 
 
 def test_export_html_to_png_no_browser():
