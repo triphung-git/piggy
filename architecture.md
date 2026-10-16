@@ -222,8 +222,8 @@ piggy/
   "build": {
     "frontendDist": "../Web Overlay/dist",
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "npm --prefix \"Web Overlay\" run dev",
-    "beforeBuildCommand": "npm --prefix \"Web Overlay\" run build"
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
   },
   "app": {
     "windows": [
