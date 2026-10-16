@@ -7,7 +7,7 @@ Kiểm tra bảo mật đầu vào:
 """
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -137,8 +137,9 @@ def test_validate_avatar_file_rejects_empty_and_oversized(tmp_path):
     oversized = tmp_path / "huge.png"
     # Giả lập file > 10MB bằng cách mock st_size
     oversized.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
-    with patch.object(Path, "stat") as mock_stat:
-        mock_stat.return_value.st_size = 11 * 1024 * 1024
+    real_stat = oversized.stat()
+    mock_stat = MagicMock(st_mode=real_stat.st_mode, st_size=11 * 1024 * 1024)
+    with patch.object(Path, "stat", return_value=mock_stat):
         ok, err = validate_avatar_file(oversized)
         assert ok is False
         assert "vượt quá giới hạn" in err
