@@ -87,9 +87,11 @@ jobs:
           test -f "src-tauri/binaries/tft-backend-${{ matrix.target }}" || exit 1
           chmod +x "src-tauri/binaries/tft-backend-${{ matrix.target }}"
 
-      - name: Install Frontend Dependencies
-        working-directory: "Web Overlay"
-        run: npm ci
+      - name: Install Frontend & Root Dependencies
+        run: |
+          npm ci
+          npm --prefix "Web Overlay" ci
+          npm --prefix "Web Overlay" run build
 
       - name: Build Tauri Desktop Application & Publish Release
         uses: tauri-apps/tauri-action@v0
@@ -98,9 +100,11 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.ref_name }}
+          tagName: v__VERSION__
           releaseName: "TFT Post-Match Studio v__VERSION__"
           releaseBody: "See the assets below to download and install for Windows, macOS, or Linux."
           releaseDraft: false
           prerelease: false
+          includeUpdaterJson: true
           args: ${{ matrix.args }}
+

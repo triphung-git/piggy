@@ -1,0 +1,14 @@
+{
+  "name": "tft-post-match-studio",
+  "version": "1.0.0",
+  "private": true,
+  "description": "TFT Post-Match Studio - Esports overlay and match tracking tool for Teamfight Tactics",
+  "scripts": {
+    "build": "npm --prefix \"Web Overlay\" run build",
+    "dev": "npm --prefix \"Web Overlay\" run dev",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  }
+}

@@ -24,7 +24,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller ruff pytest pytest-cov
+          pip install pyinstaller ruff pytest pytest-cov responses httpx
 
       - name: Run Ruff Lint Check
         run: ruff check .
