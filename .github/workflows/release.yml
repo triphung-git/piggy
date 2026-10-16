@@ -51,17 +51,21 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: "npm"
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
       - name: Install Linux System Dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev libxdo-dev
 
       - name: Build Python Sidecar Binary
         env:
@@ -82,10 +86,26 @@ jobs:
           test -f "src-tauri/binaries/tft-backend-${{ matrix.target }}" || exit 1
           chmod +x "src-tauri/binaries/tft-backend-${{ matrix.target }}"
 
-      - name: Install Frontend & Root Dependencies
+      - name: Install Root Dependencies
+        run: npm ci
+
+      - name: Install Frontend Dependencies
+        working-directory: "Web Overlay"
+        run: npm ci
+
+      - name: Build Frontend
+        working-directory: "Web Overlay"
+        run: npm run build
+
+      - name: Configure Updater Signing
+        shell: bash
         run: |
-          npm ci
-          npm --prefix "Web Overlay" ci
+          if [ -z "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
+            echo "::warning::TAURI_SIGNING_PRIVATE_KEY secret not found in repository. Disabling updater artifacts to prevent build failure."
+            python -c "import json; p='src-tauri/tauri.conf.json'; d=json.load(open(p)); d['bundle']['createUpdaterArtifacts']=False; json.dump(d,open(p,'w'),indent=2)"
+          else
+            echo "TAURI_SIGNING_PRIVATE_KEY detected. Updater signing will proceed."
+          fi
 
       - name: Build Tauri Desktop Application & Publish Release
         uses: tauri-apps/tauri-action@v0
@@ -94,11 +114,10 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: v__VERSION__
-          releaseName: "TFT Post-Match Studio v__VERSION__"
+          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v__VERSION__' }}
+          releaseName: ${{ startsWith(github.ref, 'refs/tags/') && format('TFT Post-Match Studio {0}', github.ref_name) || 'TFT Post-Match Studio v__VERSION__' }}
           releaseBody: "See the assets below to download and install for Windows, macOS, or Linux."
           releaseDraft: false
           prerelease: false
-          includeUpdaterJson: true
+          includeUpdaterJson: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
           args: ${{ matrix.args }}
-
