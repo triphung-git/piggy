@@ -98,6 +98,9 @@ def ensure_user_config_initialized() -> tuple[Path, Path]:
             resources / "defaults" / ".env",
             resources / ".env.example",
             resources / ".env",
+            resources / "_up_" / "defaults" / ".env",
+            resources / "_up_" / ".env.example",
+            resources / "_up_" / ".env",
             _find_project_root() / "defaults" / ".env",
             _find_project_root() / ".env.example",
         ]
@@ -120,6 +123,8 @@ def ensure_user_config_initialized() -> tuple[Path, Path]:
         candidates = [
             resources / "defaults" / "overlay_config.json",
             resources / "overlay_config.json",
+            resources / "_up_" / "defaults" / "overlay_config.json",
+            resources / "_up_" / "overlay_config.json",
             _find_project_root() / "defaults" / "overlay_config.json",
             _find_project_root() / "overlay_config.json",
         ]
@@ -165,7 +170,8 @@ def resolve_resource(relative_path: str | Path) -> Path:
     Giải quyết đường dẫn tài nguyên:
     1. Ưu tiên kiểm tra xem người dùng có file tùy chỉnh ở thư mục get_appdata_dir() không.
     2. Nếu không có, nạp file từ get_resource_dir().
-    3. Thử tìm ở thư mục gốc dự án.
+    3. Kiểm tra thư mục _up_ (do Tauri v2 đóng gói tài nguyên từ thư mục cha ..).
+    4. Thử tìm ở thư mục gốc dự án.
     """
     rel = Path(relative_path)
 
@@ -179,9 +185,15 @@ def resolve_resource(relative_path: str | Path) -> Path:
     if resource_path.exists():
         return resource_path
 
-    # 3. Fallback thư mục gốc dự án
+    # 3. Kiểm tra thư mục _up_ nếu Tauri v2 đóng gói từ thư mục cha
+    up_resource_path = get_resource_dir() / "_up_" / rel
+    if up_resource_path.exists():
+        return up_resource_path
+
+    # 4. Fallback thư mục gốc dự án
     root_path = _find_project_root() / rel
     if root_path.exists():
         return root_path
 
     return resource_path
+

@@ -11,8 +11,9 @@ permissions:
 
 jobs:
   build-and-publish:
-    name: Build & Release (${{ matrix.platform }})
+    name: Build & Package (${{ matrix.platform }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -52,6 +53,9 @@ jobs:
         with:
           node-version: "22"
           cache: "npm"
+          cache-dependency-path: |
+            package-lock.json
+            Web Overlay/package-lock.json
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -60,10 +64,6 @@ jobs:
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
-
-      - name: Update Cargo Dependencies
-        working-directory: src-tauri
-        run: cargo update
 
       - name: Install Linux System Dependencies
         if: runner.os == 'Linux'
@@ -102,16 +102,29 @@ jobs:
         run: npm run build
 
       - name: Configure Updater Signing
+        id: updater_config
         shell: bash
+        env:
+          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
-          if [ -z "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
+          if [ -z "$KEY" ]; then
             echo "::warning::TAURI_SIGNING_PRIVATE_KEY secret not found in repository. Disabling updater artifacts to prevent build failure."
-            python -c "import json; p='src-tauri/tauri.conf.json'; d=json.load(open(p)); d['bundle']['createUpdaterArtifacts']=False; json.dump(d,open(p,'w'),indent=2)"
+            python - <<'EOF'
+import json
+p = 'src-tauri/tauri.conf.json'
+with open(p, 'r', encoding='utf-8') as f:
+    d = json.load(f)
+d['bundle']['createUpdaterArtifacts'] = False
+with open(p, 'w', encoding='utf-8') as f:
+    json.dump(d, f, indent=2)
+EOF
+            echo "signing_enabled=false" >> "$GITHUB_OUTPUT"
           else
             echo "TAURI_SIGNING_PRIVATE_KEY detected. Updater signing will proceed."
+            echo "signing_enabled=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Build Tauri Desktop Application & Publish Release
+      - name: Build Tauri Desktop Application & Draft Release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -121,7 +134,37 @@ jobs:
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v__VERSION__' }}
           releaseName: ${{ startsWith(github.ref, 'refs/tags/') && format('TFT Post-Match Studio {0}', github.ref_name) || 'TFT Post-Match Studio v__VERSION__' }}
           releaseBody: "See the assets below to download and install for Windows, macOS, or Linux."
-          releaseDraft: false
+          releaseDraft: true
           prerelease: false
-          includeUpdaterJson: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+          includeUpdaterJson: ${{ steps.updater_config.outputs.signing_enabled == 'true' }}
           args: ${{ matrix.args }}
+
+  publish-release:
+    name: Publish Release
+    needs: build-and-publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Determine Release Tag
+        id: release_tag
+        shell: bash
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          else
+            VERSION=$(python -c "import json; print(json.load(open('src-tauri/tauri.conf.json'))['version'])")
+            echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish Draft Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_tag.outputs.tag }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

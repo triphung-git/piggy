@@ -63,6 +63,29 @@ def test_ensure_user_config_initialized_copies_defaults_without_overwrite(tmp_pa
     assert "CUSTOM_TOURNAMENT" in config_file.read_text(encoding="utf-8")
 
 
+def test_resolve_resource_and_config_up_directory_fallback(tmp_path, monkeypatch):
+    """Kiem tra fallback _up_ khi Tauri v2 dong goi tai nguyen tu thu muc cha."""
+    custom_appdata = tmp_path / "appdata"
+    custom_resources = tmp_path / "resources"
+    custom_resources.mkdir()
+    up_dir = custom_resources / "_up_"
+    up_dir.mkdir()
+    (up_dir / "templates").mkdir()
+    (up_dir / "templates" / "overlay.html").write_text("up-template", encoding="utf-8")
+    (up_dir / ".env.example").write_text("RIOT_API_KEY=UP_KEY\n", encoding="utf-8")
+    (up_dir / "overlay_config.json").write_text('{"tournament_title":"UP_TITLE"}\n', encoding="utf-8")
+
+    monkeypatch.setenv("TFT_APPDATA_DIR", str(custom_appdata))
+    monkeypatch.setenv("TFT_RESOURCE_DIR", str(custom_resources))
+
+    resolved = resolve_resource("templates/overlay.html")
+    assert resolved == up_dir / "templates" / "overlay.html"
+
+    env_file, config_file = ensure_user_config_initialized()
+    assert "UP_KEY" in env_file.read_text(encoding="utf-8")
+    assert "UP_TITLE" in config_file.read_text(encoding="utf-8")
+
+
 def test_hub_cors_and_token_security(monkeypatch):
     """Kiem tra CORS tauri origin va token security qua STUDIO_SESSION_TOKEN."""
     from fastapi.testclient import TestClient

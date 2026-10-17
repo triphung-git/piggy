@@ -41,9 +41,9 @@
       "icons/icon.png"
     ],
     "resources": [
-      "../templates/**",
-      "../assets/**",
-      "../TFT_DDragon/**",
+      "../templates/*",
+      "../assets/**/*",
+      "../TFT_DDragon/**/*",
       "../overlay_config.json",
       "../.env.example"
     ],
