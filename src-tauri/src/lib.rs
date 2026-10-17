@@ -84,8 +84,10 @@ fn spawn_backend(app: &AppHandle, state: Arc<BackendState>) -> Result<(), String
     Ok(())
 }
 
+// Root-level commands must stay private: public commands export and reimport
+// their generated macros into the same namespace, causing E0255.
 #[tauri::command]
-pub fn get_backend_connection_info(state: State<Arc<BackendState>>) -> Result<ConnectionInfo, String> {
+fn get_backend_connection_info(state: State<Arc<BackendState>>) -> Result<ConnectionInfo, String> {
     let port = *state.port.lock().map_err(|e| e.to_string())?;
     let error = state.error.lock().map_err(|e| e.to_string())?.clone();
     Ok(ConnectionInfo {
@@ -98,7 +100,7 @@ pub fn get_backend_connection_info(state: State<Arc<BackendState>>) -> Result<Co
 }
 
 #[tauri::command]
-pub async fn stop_backend_sidecar(state: State<'_, Arc<BackendState>>) -> Result<(), String> {
+async fn stop_backend_sidecar(state: State<'_, Arc<BackendState>>) -> Result<(), String> {
     let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = state.lifecycle.lock().map_err(|e| e.to_string())?;
@@ -116,12 +118,12 @@ pub async fn stop_backend_sidecar(state: State<'_, Arc<BackendState>>) -> Result
 }
 
 #[tauri::command]
-pub fn start_backend_sidecar(app: AppHandle, state: State<Arc<BackendState>>) -> Result<(), String> {
+fn start_backend_sidecar(app: AppHandle, state: State<Arc<BackendState>>) -> Result<(), String> {
     spawn_backend(&app, state.inner().clone())
 }
 
 #[tauri::command]
-pub async fn set_preview_visibility(app: AppHandle, state: State<'_, Arc<BackendState>>, visible: bool) -> Result<bool, String> {
+async fn set_preview_visibility(app: AppHandle, state: State<'_, Arc<BackendState>>, visible: bool) -> Result<bool, String> {
     if let Some(window) = app.get_webview_window("preview") {
         (if visible { window.show() } else { window.hide() }).map_err(|e| e.to_string())?;
     } else if visible {
@@ -134,13 +136,13 @@ pub async fn set_preview_visibility(app: AppHandle, state: State<'_, Arc<Backend
 }
 
 #[tauri::command]
-pub fn open_browser_panel(app: AppHandle, state: State<Arc<BackendState>>) -> Result<(), String> {
+fn open_browser_panel(app: AppHandle, state: State<Arc<BackendState>>) -> Result<(), String> {
     let port = *state.port.lock().map_err(|e| e.to_string())?;
     app.opener().open_url(format!("http://127.0.0.1:{port}/app/#token={}", state.token), None::<&str>).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn open_app_folder(app: AppHandle, state: State<Arc<BackendState>>, folder_type: String) -> Result<(), String> {
+fn open_app_folder(app: AppHandle, state: State<Arc<BackendState>>, folder_type: String) -> Result<(), String> {
     let folder = match folder_type.as_str() {
         "output" => state.appdata_dir.join("output"),
         "logs" => state.appdata_dir.join("logs"),
