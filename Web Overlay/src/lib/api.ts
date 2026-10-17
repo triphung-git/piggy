@@ -1,13 +1,4 @@
-/**
- * Web Overlay/src/lib/api.ts
- * --------------------------
- * API Facade thống nhất cho TFT Post-Match Studio.
- * Tự động phát hiện môi trường chạy (Tauri v2 IPC hoặc Browser thông thường),
- * thay thế 1-1 cho `window.pywebview.api`.
- */
-
 import { invoke } from '@tauri-apps/api/core';
-import { toPng } from 'html-to-image';
 
 export interface BackendConnectionInfo {
   baseUrl: string;
@@ -15,7 +6,6 @@ export interface BackendConnectionInfo {
   ready: boolean;
   appdataDir: string;
 }
-
 export interface AugmentItem {
   id: string | number;
   name: string;
@@ -23,246 +13,112 @@ export interface AugmentItem {
   tier?: number;
   is_destiny?: boolean;
 }
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const errorText = (error: unknown) => error instanceof Error ? error.message : String(error);
 
-class StudioApiService {
-  private _cachedConnection: BackendConnectionInfo | null = null;
-  private _initPromise: Promise<BackendConnectionInfo> | null = null;
-
-  public isTauri(): boolean {
-    return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+export class StudioApiService {
+  private connection: BackendConnectionInfo | null = null;
+  private initializing: Promise<BackendConnectionInfo> | null = null;
+  private preview: Window | null = null;
+  public isTauri(): boolean { return '__TAURI_INTERNALS__' in window; }
+  public invalidateConnection(): void { this.connection = null; this.initializing = null; }
+  public pair(token: string): void {
+    sessionStorage.setItem('studio-token', token.trim());
+    this.invalidateConnection();
   }
-
   public async getConnectionInfo(): Promise<BackendConnectionInfo> {
-    if (this._cachedConnection) {
-      return this._cachedConnection;
+    if (this.connection) return this.connection;
+    if (this.initializing) return this.initializing;
+    this.initializing = this.connect();
+    try { return await this.initializing; }
+    finally { this.initializing = null; }
+  }
+  private async connect(): Promise<BackendConnectionInfo> {
+    // URL fragments are not sent in HTTP requests or referrer headers.
+    const fragment = new URLSearchParams(location.hash.slice(1));
+    if (fragment.has('token')) {
+      sessionStorage.setItem('studio-token', fragment.get('token') || '');
+      history.replaceState(null, '', location.pathname + location.search);
     }
-
-    if (this._initPromise) {
-      return this._initPromise;
-    }
-
-    this._initPromise = (async () => {
-      if (this.isTauri()) {
-        try {
-          const info = await invoke<any>('get_backend_connection_info');
-          this._cachedConnection = {
-            baseUrl: info.base_url || 'http://127.0.0.1:8080',
-            token: info.token || '',
-            ready: Boolean(info.ready),
-            appdataDir: info.appdata_dir || '',
-          };
-          return this._cachedConnection;
-        } catch (err) {
-          console.warn('[StudioApi] Failed to invoke get_backend_connection_info:', err);
+    const deadline = Date.now() + 15000;
+    let lastError = 'Backend chưa sẵn sàng';
+    while (Date.now() < deadline) {
+      try {
+        let conn: BackendConnectionInfo;
+        const legacyDesktop = new URLSearchParams(location.search).get('desktop') === 'pywebview';
+        if (legacyDesktop && !window.pywebview?.api?.get_backend_connection_info) {
+          await delay(200);
+          continue;
         }
-      }
-
-      // Fallback khi chạy dev trên trình duyệt thông thường
-      this._cachedConnection = {
-        baseUrl: 'http://127.0.0.1:8080',
-        token: '',
-        ready: true,
-        appdataDir: '',
-      };
-      return this._cachedConnection;
-    })();
-
-    return this._initPromise;
-  }
-
-  private async _fetchWithToken(endpoint: string, options: RequestInit = {}): Promise<Response> {
-    const conn = await this.getConnectionInfo();
-    const headers = new Headers(options.headers || {});
-
-    if (conn.token && !headers.has('x-studio-token')) {
-      headers.set('x-studio-token', conn.token);
-    }
-    if (!headers.has('Content-Type') && options.body && typeof options.body === 'string') {
-      headers.set('Content-Type', 'application/json');
-    }
-
-    const url = endpoint.startsWith('http') ? endpoint : `${conn.baseUrl}${endpoint}`;
-    return fetch(url, { ...options, headers });
-  }
-
-  // --- API Methods ---
-
-  public async getAugmentsList(): Promise<AugmentItem[]> {
-    try {
-      const res = await this._fetchWithToken('/api/augments');
-      if (!res.ok) return [];
-      const data = await res.json();
-      return data.augments || [];
-    } catch (e) {
-      console.error('[StudioApi] getAugmentsList error:', e);
-      return [];
-    }
-  }
-
-  public async saveCustomAugments(augments: (string | null)[]): Promise<{ success: boolean; error?: string }> {
-    try {
-      const res = await this._fetchWithToken('/api/augments', {
-        method: 'POST',
-        body: JSON.stringify({ custom_augments: augments }),
-      });
-      return await res.json();
-    } catch (e: any) {
-      return { success: false, error: e?.message || String(e) };
-    }
-  }
-
-  public async renderOverlay(): Promise<{
-    success: boolean;
-    match_id?: string;
-    mode?: string;
-    png_path?: string;
-    error?: string;
-  }> {
-    try {
-      const res = await this._fetchWithToken('/api/render', {
-        method: 'POST',
-      });
-      return await res.json();
-    } catch (e: any) {
-      return { success: false, error: e?.message || String(e) };
-    }
-  }
-
-  public async getConfig(): Promise<any> {
-    try {
-      const res = await this._fetchWithToken('/api/config');
-      return await res.json();
-    } catch (e) {
-      console.error('[StudioApi] getConfig error:', e);
-      return {};
-    }
-  }
-
-  public async saveConfig(data: any): Promise<{ success: boolean; error?: string; overlay_config?: any }> {
-    try {
-      const res = await this._fetchWithToken('/api/config', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      });
-      return await res.json();
-    } catch (e: any) {
-      return { success: false, error: e?.message || String(e) };
-    }
-  }
-
-  public async fetchLatestMatch(): Promise<{ success: boolean; error?: string; message?: string }> {
-    try {
-      const res = await this._fetchWithToken('/api/riot/fetch', {
-        method: 'POST',
-      });
-      return await res.json();
-    } catch (e: any) {
-      return { success: false, error: e?.message || String(e) };
-    }
-  }
-
-  public async getAppState(): Promise<any> {
-    try {
-      const res = await this._fetchWithToken('/api/state');
-      return await res.json();
-    } catch (e) {
-      return null;
-    }
-  }
-
-  /**
-   * Kết xuất ảnh PNG 1080p chuẩn xác:
-   * 1. Thử dùng html-to-image render phần tử overlay ở độ phân giải 1920x1080.
-   * 2. Gửi Base64 xuống endpoint /api/export/base64.
-   * 3. Nếu thất bại, fallback sang /api/export (Headless Chromium).
-   */
-  public async exportOverlayImage(elementId?: string): Promise<{ success: boolean; filePath?: string; error?: string }> {
-    try {
-      let targetEl: HTMLElement | null = null;
-      if (elementId) {
-        targetEl = document.getElementById(elementId);
-      }
-      if (!targetEl) {
-        targetEl = document.getElementById('overlay-root') || document.querySelector('.overlay-container') || document.body;
-      }
-
-      if (targetEl) {
-        const dataUrl = await toPng(targetEl, {
-          width: 1920,
-          height: 1080,
-          pixelRatio: 1,
-          cacheBust: true,
-        });
-
-        const res = await this._fetchWithToken('/api/export/base64', {
-          method: 'POST',
-          body: JSON.stringify({ image_base64: dataUrl }),
-        });
-
-        if (res.ok) {
-          const result = await res.json();
-          if (result.success) {
-            return { success: true, filePath: result.file_path };
-          }
+        if (this.isTauri() || window.pywebview?.api?.get_backend_connection_info) {
+          const info = this.isTauri()
+            ? await invoke<any>('get_backend_connection_info')
+            : await window.pywebview!.api!.get_backend_connection_info!();
+          if (info.error) throw new Error(info.error);
+          if (!info.ready) { await delay(200); continue; }
+          conn = {baseUrl: info.base_url, token: info.token, ready: true, appdataDir: info.appdata_dir || ''};
+        } else {
+          if (location.protocol === 'file:') { await delay(200); continue; }
+          const hosted = location.pathname.startsWith('/app');
+          const baseUrl = import.meta.env.VITE_BACKEND_URL || (hosted ? location.origin : 'http://127.0.0.1:8080');
+          conn = {baseUrl, token: sessionStorage.getItem('studio-token') || '', ready: true, appdataDir: ''};
         }
-      }
-    } catch (err) {
-      console.warn('[StudioApi] html-to-image export failed, falling back to backend Chromium:', err);
+        const health = await fetch(`${conn.baseUrl}/api/status`, {signal: AbortSignal.timeout(1500)});
+        if (!health.ok || !(await health.json()).ready) throw new Error('Backend đang khởi động');
+        this.connection = conn;
+        return conn;
+      } catch (error) { lastError = errorText(error); }
+      await delay(300);
     }
-
-    // Fallback sang endpoint /api/export của backend
+    throw new Error(`Không kết nối được backend: ${lastError}. Kiểm tra cổng hoặc khởi động lại ứng dụng.`);
+  }
+  private async request(endpoint: string, body?: unknown): Promise<any> {
+    const conn = await this.getConnectionInfo();
+    if (body !== undefined && !conn.token) throw new Error('Mở Browser Panel từ ứng dụng desktop để ghép cặp phiên.');
+    const response = await fetch(`${conn.baseUrl}${endpoint}`, {
+      method: body === undefined ? 'GET' : 'POST',
+      headers: {'Content-Type': 'application/json', ...(conn.token ? {'X-Studio-Token': conn.token} : {})},
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(45000),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : data.error || `HTTP ${response.status}`);
+    return data;
+  }
+  public async getAugmentsList(): Promise<AugmentItem[]> { return (await this.request('/api/augments')).augments; }
+  public getConfig(): Promise<any> { return this.request('/api/config'); }
+  public getAppState(): Promise<any> { return this.request('/api/state'); }
+  public saveConfig(data: unknown): Promise<any> { return this.request('/api/config', data); }
+  public saveCustomAugments(augments: (string | null)[]): Promise<any> { return this.request('/api/augments', {custom_augments: augments}); }
+  public renderOverlay(): Promise<any> { return this.request('/api/render', {}); }
+  public fetchLatestMatch(): Promise<any> { return this.request('/api/riot/fetch', {}); }
+  public saveRiotSettings(settings: {riot_id: string; region: string; api_key?: string}): Promise<any> { return this.request('/api/riot/settings', settings); }
+  public async exportOverlayImage(): Promise<{success: boolean; filePath?: string; error?: string}> {
     try {
-      const fallbackRes = await this._fetchWithToken('/api/export', { method: 'POST' });
-      const data = await fallbackRes.json();
-      return { success: data.success, filePath: data.file_path, error: data.error };
-    } catch (fallbackErr: any) {
-      return { success: false, error: fallbackErr?.message || String(fallbackErr) };
+      const result = await this.request('/api/export', {});
+      return {success: result.success, filePath: result.file_path, error: result.error};
+    } catch (error) { return {success: false, error: errorText(error)}; }
+  }
+  public async openOutputFolder(): Promise<void> { if (this.isTauri()) await invoke('open_app_folder', {folderType: 'output'}); }
+  public async openLogsFolder(): Promise<void> { if (this.isTauri()) await invoke('open_app_folder', {folderType: 'logs'}); }
+  public async openBrowserPanel(): Promise<void> {
+    if (this.isTauri()) await invoke('open_browser_panel');
+    else {
+      const conn = await this.getConnectionInfo();
+      window.open(`${conn.baseUrl}/app/#token=${encodeURIComponent(conn.token)}`, '_blank', 'noopener');
     }
   }
-
-  public async openOutputFolder(): Promise<void> {
-    if (this.isTauri()) {
-      try {
-        await invoke('open_app_folder', { folderType: 'output' });
-        return;
-      } catch (err) {
-        console.warn('[StudioApi] open_app_folder error:', err);
-      }
-    }
-    const conn = await this.getConnectionInfo();
-    window.open(`${conn.baseUrl}/output`, '_blank');
-  }
-
-  public async openLogsFolder(): Promise<void> {
-    if (this.isTauri()) {
-      try {
-        await invoke('open_app_folder', { folderType: 'logs' });
-        return;
-      } catch (err) {
-        console.warn('[StudioApi] openLogsFolder error:', err);
-      }
-    }
-  }
-
-  public async openObsOverlayWindow(): Promise<void> {
-    const conn = await this.getConnectionInfo();
-    const url = `${conn.baseUrl}/overlay`;
-    window.open(url, '_blank');
-  }
-
-  public async closePanel(): Promise<void> {
-    if (this.isTauri()) {
-      try {
-        await invoke('stop_backend_sidecar');
-      } catch (e) {
-        console.warn('[StudioApi] stop_backend_sidecar error:', e);
-      }
-    }
-  }
-
+  public async openObsOverlayWindow(): Promise<void> { await this.toggleOverlayVisibility(true); }
+  public async closePanel(): Promise<void> { /* Panel state is independent of backend lifetime. */ }
   public async toggleOverlayVisibility(visible: boolean): Promise<boolean> {
-    return visible;
+    if (this.isTauri()) return invoke<boolean>('set_preview_visibility', {visible});
+    if (window.pywebview?.api?.toggle_overlay_visibility) return window.pywebview.api.toggle_overlay_visibility(visible);
+    if (!visible) { this.preview?.close(); this.preview = null; return false; }
+    this.preview = window.open('', 'tft-overlay-preview', 'width=960,height=540');
+    if (!this.preview) throw new Error('Trình duyệt đang chặn cửa sổ preview. Hãy cho phép popup.');
+    const conn = await this.getConnectionInfo();
+    this.preview.location.href = `${conn.baseUrl}/overlay`;
+    return true;
   }
 }
-
 export const StudioApi = new StudioApiService();

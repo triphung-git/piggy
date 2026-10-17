@@ -101,55 +101,25 @@ class ConfigWatcher:
         logger.info("ConfigWatcher stopped")
 
     def _watch_loop(self) -> None:
-        last_trigger_time: dict[str, float] = {}
-
-        while not self._stop_event.is_set():
-            time.sleep(self.poll_interval)
-            if self._stop_event.is_set():
-                break
-
-            now = time.time()
-
-            # 1. Kiểm tra overlay_config.json
-            cfg_mtime = self._get_file_mtime(self.config_path)
-            if cfg_mtime > 0 and cfg_mtime != self._mtimes.get("config", 0.0):
-                self._mtimes["config"] = cfg_mtime
-                if now - last_trigger_time.get("config", 0.0) >= self.debounce_seconds:
-                    last_trigger_time["config"] = now
-                    logger.info(
-                        "Detected change in %s -> triggering auto-sync", self.config_path.name
-                    )
-                    if self.on_config_changed:
+        pending: dict[str, float] = {}
+        while not self._stop_event.wait(self.poll_interval):
+            now = time.monotonic()
+            readings = {
+                "config": self._get_file_mtime(self.config_path),
+                "env": self._get_file_mtime(self.env_path),
+                "avatars": self._get_dir_max_mtime(self.avatars_dir),
+            }
+            for key, mtime in readings.items():
+                if mtime != self._mtimes.get(key, 0.0):
+                    self._mtimes[key] = mtime
+                    pending[key] = now + self.debounce_seconds
+            callbacks = {"config": self.on_config_changed, "env": self.on_env_changed, "avatars": self.on_avatars_changed}
+            for key in list(pending):
+                if now >= pending[key]:
+                    del pending[key]
+                    callback = callbacks[key]
+                    if callback:
                         try:
-                            self.on_config_changed()
-                        except Exception as e:
-                            logger.error("Error in on_config_changed: %s", e)
-
-            # 2. Kiểm tra file .env
-            env_mtime = self._get_file_mtime(self.env_path)
-            if env_mtime > 0 and env_mtime != self._mtimes.get("env", 0.0):
-                self._mtimes["env"] = env_mtime
-                if now - last_trigger_time.get("env", 0.0) >= self.debounce_seconds:
-                    last_trigger_time["env"] = now
-                    logger.info(
-                        "Detected change in %s -> triggering env reload", self.env_path.name
-                    )
-                    if self.on_env_changed:
-                        try:
-                            self.on_env_changed()
-                        except Exception as e:
-                            logger.error("Error in on_env_changed: %s", e)
-
-            # 3. Kiểm tra thư mục avatars
-            if self.avatars_dir:
-                av_mtime = self._get_dir_max_mtime(self.avatars_dir)
-                if av_mtime > 0 and av_mtime != self._mtimes.get("avatars", 0.0):
-                    self._mtimes["avatars"] = av_mtime
-                    if now - last_trigger_time.get("avatars", 0.0) >= self.debounce_seconds:
-                        last_trigger_time["avatars"] = now
-                        logger.info("Detected change in avatars directory -> triggering auto-sync")
-                        if self.on_avatars_changed:
-                            try:
-                                self.on_avatars_changed()
-                            except Exception as e:
-                                logger.error("Error in on_avatars_changed: %s", e)
+                            callback()
+                        except Exception:
+                            logger.exception("Config watcher callback failed: %s", key)

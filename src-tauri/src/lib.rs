@@ -1,201 +1,187 @@
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, Manager, RunEvent, State};
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Serialize)]
 pub struct ConnectionInfo {
-    pub base_url: String,
-    pub token: String,
-    pub ready: bool,
-    pub appdata_dir: String,
+    base_url: String,
+    token: String,
+    ready: bool,
+    appdata_dir: PathBuf,
+    error: Option<String>,
 }
 
 pub struct BackendState {
-    pub child: Mutex<Option<CommandChild>>,
-    pub port: Mutex<u16>,
-    pub token: String,
-    pub ready: AtomicBool,
-    pub appdata_dir: PathBuf,
-    pub resource_dir: PathBuf,
+    lifecycle: Mutex<()>,
+    child: Mutex<Option<CommandChild>>,
+    port: Mutex<u16>,
+    token: String,
+    ready: AtomicBool,
+    terminated: AtomicBool,
+    generation: AtomicU64,
+    error: Mutex<Option<String>>,
+    appdata_dir: PathBuf,
+    resource_dir: PathBuf,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 struct ServerReadySignal {
     event: String,
     port: Option<u16>,
 }
 
+fn spawn_backend(app: &AppHandle, state: Arc<BackendState>) -> Result<(), String> {
+    let lifecycle_state = state.clone();
+    let _guard = lifecycle_state.lifecycle.lock().map_err(|e| e.to_string())?;
+    if !state.terminated.load(Ordering::SeqCst) {
+        return Err("Backend is still running".into());
+    }
+    let command = app.shell().sidecar("tft-backend").map_err(|e| e.to_string())?
+        .env("TFT_APPDATA_DIR", &state.appdata_dir)
+        .env("TFT_RESOURCE_DIR", &state.resource_dir)
+        .env("STUDIO_SESSION_TOKEN", &state.token)
+        .set_process_group(true);
+    let (mut rx, child) = command.spawn().map_err(|e| e.to_string())?;
+    let generation = state.generation.fetch_add(1, Ordering::SeqCst) + 1;
+    *state.child.lock().map_err(|e| e.to_string())? = Some(child);
+    *state.error.lock().map_err(|e| e.to_string())? = None;
+    state.terminated.store(false, Ordering::SeqCst);
+    state.ready.store(false, Ordering::SeqCst);
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        while let Some(event) = rx.recv().await {
+            if generation != state.generation.load(Ordering::SeqCst) { break; }
+            match event {
+                CommandEvent::Stdout(bytes) => {
+                    if let Ok(signal) = serde_json::from_slice::<ServerReadySignal>(&bytes) {
+                        if signal.event == "server_ready" {
+                            if let Some(port) = signal.port {
+                                if let Ok(mut current) = state.port.lock() { *current = port; }
+                            }
+                            state.ready.store(true, Ordering::SeqCst);
+                            let _ = app.emit("backend-ready", ());
+                        }
+                    }
+                }
+                CommandEvent::Stderr(bytes) => eprintln!("[Backend] {}", String::from_utf8_lossy(&bytes)),
+                CommandEvent::Terminated(payload) => {
+                    state.ready.store(false, Ordering::SeqCst);
+                    if let Ok(mut child) = state.child.lock() { *child = None; }
+                    if let Ok(mut error) = state.error.lock() { *error = Some(format!("Backend stopped ({:?})", payload.code)); }
+                    let _ = app.emit("backend-stopped", ());
+                    state.terminated.store(true, Ordering::SeqCst);
+                    break;
+                }
+                _ => {}
+            }
+        }
+    });
+    Ok(())
+}
+
+// Root-level commands must stay private: public commands export and reimport
+// their generated macros into the same namespace, causing E0255.
 #[tauri::command]
-pub fn get_backend_connection_info(state: State<Arc<BackendState>>) -> Result<ConnectionInfo, String> {
+fn get_backend_connection_info(state: State<Arc<BackendState>>) -> Result<ConnectionInfo, String> {
     let port = *state.port.lock().map_err(|e| e.to_string())?;
+    let error = state.error.lock().map_err(|e| e.to_string())?.clone();
     Ok(ConnectionInfo {
-        base_url: format!("http://127.0.0.1:{}", port),
+        base_url: format!("http://127.0.0.1:{port}"),
         token: state.token.clone(),
         ready: state.ready.load(Ordering::SeqCst),
-        appdata_dir: state.appdata_dir.to_string_lossy().to_string(),
+        appdata_dir: state.appdata_dir.clone(),
+        error,
     })
 }
 
 #[tauri::command]
-pub fn stop_backend_sidecar(state: State<Arc<BackendState>>) -> Result<(), String> {
-    let mut child_guard = state.child.lock().map_err(|e| e.to_string())?;
-    if let Some(child) = child_guard.take() {
-        let _ = child.kill();
-    }
-    state.ready.store(false, Ordering::SeqCst);
-    Ok(())
+async fn stop_backend_sidecar(state: State<'_, Arc<BackendState>>) -> Result<(), String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = state.lifecycle.lock().map_err(|e| e.to_string())?;
+        if let Some(child) = state.child.lock().map_err(|e| e.to_string())?.take() {
+            child.kill().map_err(|e| e.to_string())?;
+        }
+        state.ready.store(false, Ordering::SeqCst);
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while !state.terminated.load(Ordering::SeqCst) {
+            if std::time::Instant::now() > deadline { return Err("Backend did not exit; installation cancelled".into()); }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        Ok(())
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub fn open_app_folder(
-    app: AppHandle,
-    state: State<Arc<BackendState>>,
-    folder_type: String,
-) -> Result<(), String> {
-    let target_dir = match folder_type.as_str() {
+fn start_backend_sidecar(app: AppHandle, state: State<Arc<BackendState>>) -> Result<(), String> {
+    spawn_backend(&app, state.inner().clone())
+}
+
+#[tauri::command]
+async fn set_preview_visibility(app: AppHandle, state: State<'_, Arc<BackendState>>, visible: bool) -> Result<bool, String> {
+    if let Some(window) = app.get_webview_window("preview") {
+        (if visible { window.show() } else { window.hide() }).map_err(|e| e.to_string())?;
+    } else if visible {
+        if !state.ready.load(Ordering::SeqCst) { return Err("Backend is not ready".into()); }
+        let url = format!("http://127.0.0.1:{}/overlay", *state.port.lock().map_err(|e| e.to_string())?);
+        WebviewWindowBuilder::new(&app, "preview", WebviewUrl::External(tauri::Url::parse(&url).map_err(|e| e.to_string())?))
+            .title("TFT Overlay Preview").inner_size(960.0, 540.0).build().map_err(|e| e.to_string())?;
+    }
+    Ok(visible)
+}
+
+#[tauri::command]
+fn open_browser_panel(app: AppHandle, state: State<Arc<BackendState>>) -> Result<(), String> {
+    let port = *state.port.lock().map_err(|e| e.to_string())?;
+    app.opener().open_url(format!("http://127.0.0.1:{port}/app/#token={}", state.token), None::<&str>).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn open_app_folder(app: AppHandle, state: State<Arc<BackendState>>, folder_type: String) -> Result<(), String> {
+    let folder = match folder_type.as_str() {
         "output" => state.appdata_dir.join("output"),
         "logs" => state.appdata_dir.join("logs"),
-        _ => state.appdata_dir.clone(),
+        _ => return Err("Unknown folder".into()),
     };
-
-    if !target_dir.exists() {
-        let _ = std::fs::create_dir_all(&target_dir);
-    }
-
-    app.opener()
-        .open_path(target_dir.to_string_lossy().to_string(), None::<&str>)
-        .map_err(|e| e.to_string())
+    std::fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
+    app.opener().open_path(folder.to_string_lossy().to_string(), None::<&str>).map_err(|e| e.to_string())
 }
 
 pub fn run() {
-    let app_builder = tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_updater::Builder::new().build());
-
-    let backend_state_holder: Arc<Mutex<Option<Arc<BackendState>>>> = Arc::new(Mutex::new(None));
-    let state_holder_clone = backend_state_holder.clone();
-
-    let app = app_builder
-        .setup(move |app| {
-            let app_handle = app.handle().clone();
-
-            // 1. Xác định thư mục AppData và Resources
-            let appdata_dir = app_handle
-                .path()
-                .app_data_dir()
-                .unwrap_or_else(|_| PathBuf::from("./appdata"));
-            let resource_dir = app_handle
-                .path()
-                .resource_dir()
-                .unwrap_or_else(|_| PathBuf::from("./"));
-
-            // Đảm bảo thư mục AppData tồn tại
-            let _ = std::fs::create_dir_all(&appdata_dir);
-            let _ = std::fs::create_dir_all(appdata_dir.join("output"));
-            let _ = std::fs::create_dir_all(appdata_dir.join("logs"));
-
-            // 2. Tạo Session Token bí mật
-            let session_token = uuid::Uuid::new_v4().to_string();
-
-            let backend_state = Arc::new(BackendState {
-                child: Mutex::new(None),
-                port: Mutex::new(8080),
-                token: session_token.clone(),
-                ready: AtomicBool::new(false),
-                appdata_dir: appdata_dir.clone(),
-                resource_dir: resource_dir.clone(),
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .setup(|app| {
+            let state = Arc::new(BackendState {
+                lifecycle: Mutex::new(()),
+                child: Mutex::new(None), port: Mutex::new(8080), token: uuid::Uuid::new_v4().to_string(),
+                ready: AtomicBool::new(false), terminated: AtomicBool::new(true), generation: AtomicU64::new(0), error: Mutex::new(None),
+                appdata_dir: app.path().app_data_dir()?, resource_dir: app.path().resource_dir()?,
             });
-
-            app.manage(backend_state.clone());
-            if let Ok(mut holder) = state_holder_clone.lock() {
-                *holder = Some(backend_state.clone());
+            std::fs::create_dir_all(&state.appdata_dir)?;
+            app.manage(state.clone());
+            if let Err(error) = spawn_backend(app.handle(), state.clone()) {
+                *state.error.lock().unwrap() = Some(error);
             }
-
-            // 3. Khởi chạy Sidecar tft-backend
-            let sidecar_command = match app.shell().sidecar("tft-backend") {
-                Ok(cmd) => cmd
-                    .env("TFT_APPDATA_DIR", appdata_dir.to_string_lossy().to_string())
-                    .env("TFT_RESOURCE_DIR", resource_dir.to_string_lossy().to_string())
-                    .env("STUDIO_SESSION_TOKEN", session_token),
-                Err(err) => {
-                    eprintln!("[Rust] Error preparing sidecar: {:?}", err);
-                    return Ok(());
-                }
-            };
-
-            match sidecar_command.spawn() {
-                Ok((mut rx, child)) => {
-                    if let Ok(mut child_lock) = backend_state.child.lock() {
-                        *child_lock = Some(child);
-                    }
-
-                    let state_for_events = backend_state.clone();
-                    let handle_for_events = app_handle.clone();
-
-                    tauri::async_runtime::spawn(async move {
-                        while let Some(event) = rx.recv().await {
-                            match event {
-                                CommandEvent::Stdout(line_bytes) => {
-                                    let line = String::from_utf8_lossy(&line_bytes);
-                                    if let Ok(signal) = serde_json::from_str::<ServerReadySignal>(&line) {
-                                        if signal.event == "server_ready" {
-                                            if let Some(p) = signal.port {
-                                                if let Ok(mut port_lock) = state_for_events.port.lock() {
-                                                    *port_lock = p;
-                                                }
-                                            }
-                                            state_for_events.ready.store(true, Ordering::SeqCst);
-                                            let _ = handle_for_events.emit("backend-ready", ());
-                                        }
-                                    }
-                                }
-                                CommandEvent::Stderr(err_bytes) => {
-                                    let err_line = String::from_utf8_lossy(&err_bytes);
-                                    eprintln!("[Python Backend] {}", err_line);
-                                }
-                                CommandEvent::Terminated(term_payload) => {
-                                    state_for_events.ready.store(false, Ordering::SeqCst);
-                                    eprintln!("[Python Backend] Terminated with code: {:?}", term_payload.code);
-                                }
-                                _ => {}
-                            }
-                        }
-                    });
-                }
-                Err(err) => {
-                    eprintln!("[Rust] Failed to spawn sidecar: {:?}", err);
-                }
-            }
-
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![
-            get_backend_connection_info,
-            stop_backend_sidecar,
-            open_app_folder
-        ])
+        .invoke_handler(tauri::generate_handler![get_backend_connection_info, stop_backend_sidecar, start_backend_sidecar, set_preview_visibility, open_browser_panel, open_app_folder])
         .build(tauri::generate_context!())
-        .expect("error while building tauri application");
-
-    app.run(move |_app_handle, event| {
+        .expect("Failed to build TFT Studio");
+    app.run(|handle, event| {
         if let RunEvent::ExitRequested { .. } = event {
-            if let Ok(holder) = backend_state_holder.lock() {
-                if let Some(ref state) = *holder {
-                    if let Ok(mut child_guard) = state.child.lock() {
-                        if let Some(child) = child_guard.take() {
-                            let _ = child.kill();
-                        }
-                    }
-                }
-            }
+            let state = handle.state::<Arc<BackendState>>();
+            if let Ok(mut child) = state.child.lock() {
+                if let Some(child) = child.take() { let _ = child.kill(); }
+            };
         }
     });
 }

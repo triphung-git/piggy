@@ -34,7 +34,9 @@ def test_export_html_to_png_successful_run(tmp_path):
 
     def fake_subprocess_run(cmd, **kwargs):
         # Gia lap tao ra file anh > 10000 bytes
-        out_png.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 12000)
+        from PIL import Image
+        destination = next(arg.split("=", 1)[1] for arg in cmd if arg.startswith("--screenshot="))
+        Image.new("RGBA", (1920, 1080)).save(destination, format="PNG")
         mock_res = MagicMock()
         mock_res.stderr = ""
         mock_res.returncode = 0

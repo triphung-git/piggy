@@ -12,12 +12,13 @@ import html
 import json
 import logging
 import re
-import shutil
 import sys
 from pathlib import Path
 from typing import Any
 
 from tft_studio.core.paths import get_app_dir, get_bundle_dir, resolve_resource
+from tft_studio.core.schemas import OverlayConfig
+from tft_studio.core.storage import atomic_write
 from tft_studio.data.parser import get_ddragon_loader
 
 # Đảm bảo terminal Windows in UTF-8
@@ -47,22 +48,13 @@ DEFAULT_CSS_FILE = resolve_resource("templates/overlay.css")
 
 def load_overlay_config(config_path: Path) -> dict:
     """Nạp file cấu hình overlay tùy chỉnh."""
-    default_config = {
-        "tournament_title": "HOSC 2026",
-        "stage_title": "LAST CHANCE QUALIFIER",
-        "game_title": "TEAMFIGHT TACTICS",
-        "server_port": 8080,
-        "background_image": "../assets/background.png",
-        "player_avatars": {},
-    }
     if config_path.exists():
         try:
-            with open(config_path, encoding="utf-8") as f:
-                loaded = json.load(f)
-                default_config.update(loaded)
-        except Exception as exc:
-            logger.warning("Không thể đọc file config %s: %s", config_path, exc)
-    return default_config
+            loaded = json.loads(config_path.read_text(encoding="utf-8"))
+            return OverlayConfig.model_validate(loaded).model_dump()
+        except Exception:
+            logger.warning("Invalid overlay configuration; using safe defaults")
+    return OverlayConfig().model_dump()
 
 
 _IMAGE_SETS: dict[str, set[str]] = {}
@@ -101,13 +93,12 @@ def find_avatar_url(player_name: str, display_name: str, companion_img: str, con
                 return f"../{rel_clean}"
 
     # Kiểm tra thư mục assets/avatars/
-    avatars_folder = ASSETS_DIR / "avatars"
     clean_name = "".join(c if c.isalnum() else "_" for c in display_name).lower()
     for ext in (".png", ".jpg", ".jpeg", ".webp"):
-        candidate = avatars_folder / f"{display_name}{ext}"
+        candidate = resolve_resource(f"assets/avatars/{display_name}{ext}")
         if candidate.exists():
             return f"../assets/avatars/{candidate.name}"
-        candidate_clean = avatars_folder / f"{clean_name}{ext}"
+        candidate_clean = resolve_resource(f"assets/avatars/{clean_name}{ext}")
         if candidate_clean.exists():
             return f"../assets/avatars/{candidate_clean.name}"
 
@@ -244,12 +235,16 @@ def build_augments_html(augments_detailed: list[dict], config: dict | None = Non
     # Xây dựng danh sách các slot (tối thiểu 3 slot, tối đa 6 slot khi có lõi Destiny)
     items_to_render: list[dict | None] = []
     if custom and isinstance(custom, list):
-        for i, item in enumerate(custom[:6]):
-            if item is None or (isinstance(item, str) and not item.strip()):
-                # Slot này để Auto — lấy từ trận đấu nếu có
-                items_to_render.append(auto_source[i] if i < len(auto_source) else None)
-            else:
-                items_to_render.append(resolve_custom_augment(item, cfg))
+        index = 0
+        for slot in range(3):
+            item = custom[index] if index < len(custom) else None
+            index += 1
+            main = resolve_custom_augment(item, cfg) if item else (auto_source[slot] if slot < len(auto_source) else None)
+            items_to_render.append(main)
+            if item and main and "destiny" in f"{main.get('name', '')} {main.get('image', '')}".lower():
+                bonus = custom[index] if index < len(custom) else None
+                index += 1
+                items_to_render.append(resolve_custom_augment(bonus, cfg) if bonus else None)
     elif augments_detailed:
         items_to_render = auto_source
     # else: không có gì → danh sách trống
@@ -425,13 +420,12 @@ def generate_overlay_html(
 
     # 5. Ghi file HTML đầu ra
     output_html_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_html_path, "w", encoding="utf-8") as f:
-        f.write(rendered)
+    atomic_write(output_html_path, rendered)
 
     # 6. Đồng bộ file CSS sang output/ (chỉ copy nếu chưa có hoặc file nguồn mới hơn)
     output_css_path = output_html_path.parent / "overlay.css"
     if not output_css_path.exists() or (DEFAULT_CSS_FILE.exists() and output_css_path.stat().st_mtime < DEFAULT_CSS_FILE.stat().st_mtime):
-        shutil.copy(DEFAULT_CSS_FILE, output_css_path)
+        atomic_write(output_css_path, DEFAULT_CSS_FILE.read_bytes())
 
     logger.info("Overlay created")
     return output_html_path

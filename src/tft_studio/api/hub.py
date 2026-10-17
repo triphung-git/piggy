@@ -12,24 +12,36 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import io
 import json
 import logging
 import os
 import re
 import secrets
-import shutil
 import threading
 import time
+import uuid
+from contextlib import asynccontextmanager
 from typing import Any
 
 import uvicorn
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from PIL import Image
+from pydantic import ValidationError
 
+from tft_studio.api.body_limit import BodyLimitMiddleware
 from tft_studio.core.config import AppConfig, load_overlay_config, save_overlay_config
-from tft_studio.core.paths import get_app_dir, get_appdata_dir, resolve_resource
+from tft_studio.core.paths import (
+    ensure_user_config_initialized,
+    get_app_dir,
+    get_appdata_dir,
+    resolve_resource,
+)
+from tft_studio.core.schemas import ExportRequest, RiotSettings
+from tft_studio.core.storage import EXPORT_LOCK, atomic_write
 from tft_studio.data.parser import get_ddragon_loader, validate_custom_augment
 
 logger = logging.getLogger("network_hub")
@@ -57,7 +69,7 @@ ALLOWED_HOST_PATTERN = re.compile(
     r"^(localhost|127\.0\.0\.1|tauri\.localhost)(:\d+)?$", re.IGNORECASE
 )
 ALLOWED_ORIGIN_PATTERN = re.compile(
-    r"^(https?://(localhost|127\.0\.0\.1)(:\d+)?|tauri://localhost|https?://tauri\.localhost|null)$",
+    r"^(https?://(localhost|127\.0\.0\.1)(:\d+)?|tauri://localhost|https?://tauri\.localhost)$",
     re.IGNORECASE,
 )
 
@@ -96,8 +108,28 @@ class LocalNotifier:
             self._connections.discard(ws)
 
 
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    global _current_loop, _bridge_ref
+    _current_loop = asyncio.get_running_loop()
+    owned = _bridge_ref is None
+    if owned:
+        ensure_user_config_initialized()
+        from tft_studio.service.controller import StudioController
+        from tft_studio.service.match_service import MatchService
+        _bridge_ref = StudioController(MatchService())
+    try:
+        yield
+    finally:
+        if owned and _bridge_ref:
+            await asyncio.to_thread(_bridge_ref.close)
+            _bridge_ref = None
+        _current_loop = None
+
+
 # FastAPI App — localhost only
-app = FastAPI(title="TFT Post-Match Studio (Standalone)", docs_url=None, redoc_url=None)
+app = FastAPI(title="TFT Post-Match Studio (Standalone)", docs_url=None, redoc_url=None, lifespan=lifespan)
+app.add_middleware(BodyLimitMiddleware)
 
 # S3: CORS cho localhost/127.0.0.1 và các origin hợp lệ của Tauri
 app.add_middleware(
@@ -148,7 +180,22 @@ notifier = LocalNotifier()
 _bridge_ref: Any = None
 _server_thread: threading.Thread | None = None
 _is_running = False
+_runtime_port = 8080
 _current_loop: asyncio.AbstractEventLoop | None = None
+
+
+def get_runtime_port() -> int:
+    return _runtime_port
+
+
+def set_runtime_port(port: int) -> None:
+    global _runtime_port
+    _runtime_port = port
+
+
+@app.exception_handler(ValidationError)
+async def config_validation_error(request: Request, exc: ValidationError):
+    return JSONResponse({"success": False, "error": "Invalid configuration", "fields": [".".join(str(p) for p in e["loc"]) for e in exc.errors()]}, status_code=422)
 
 
 def set_bridge_reference(bridge: Any) -> None:
@@ -179,15 +226,19 @@ async def websocket_endpoint(websocket: WebSocket):
     global _current_loop
     _current_loop = asyncio.get_running_loop()
 
+    host = websocket.headers.get("host", "")
+    origin = websocket.headers.get("origin")
+    if not ALLOWED_HOST_PATTERN.fullmatch(host) or (origin and not ALLOWED_ORIGIN_PATTERN.fullmatch(origin)):
+        await websocket.close(code=1008)
+        return
     await notifier.connect(websocket)
     try:
         # Gửi trạng thái ban đầu
-        current_cfg = load_overlay_config()
         await websocket.send_text(
             json.dumps(
                 {
                     "type": "INITIAL_STATE",
-                    "overlay_config": current_cfg,
+                    "ready": _bridge_ref is not None,
                 },
                 ensure_ascii=False,
             )
@@ -214,10 +265,11 @@ async def websocket_endpoint(websocket: WebSocket):
 def get_server_status():
     """Kiểm tra trạng thái server cục bộ."""
     return {
-        "status": "online",
+        "status": "online" if _bridge_ref else "starting",
+        "ready": _bridge_ref is not None,
         "mode": "standalone",
-        "obs_url": "http://localhost:8080/overlay",
-        "control_url": "http://localhost:8080/app",
+        "obs_url": f"http://127.0.0.1:{_runtime_port}/overlay",
+        "control_url": f"http://127.0.0.1:{_runtime_port}/app/",
     }
 
 
@@ -225,27 +277,16 @@ def get_server_status():
 def get_app_state():
     """Lấy toàn bộ trạng thái ứng dụng hiện tại."""
     if not _bridge_ref:
-        return {"error": "Bridge reference not set"}
+        raise HTTPException(503, "Application is starting")
     return _bridge_ref.get_app_state()
 
 
 @app.post("/api/render")
-async def trigger_render(request: Request):
-    """Kích hoạt render overlay từ HTTP request (hỗ trợ OBS tools, script)."""
+def trigger_render():
     if not _bridge_ref:
-        return {"success": False, "error": "Bridge not ready"}
-
-    res = _bridge_ref.render_overlay()
-
-    notify_sync(
-        {
-            "type": "OVERLAY_RENDERED",
-            "success": res.get("success", False),
-            "match_id": res.get("match_id"),
-            "timestamp": time.time(),
-        }
-    )
-    return res
+        raise HTTPException(503, "Application is starting")
+    result = _bridge_ref.render_overlay()
+    return JSONResponse(result, status_code=200 if result.get("success") else 409)
 
 
 @app.get("/api/config")
@@ -274,7 +315,7 @@ def get_riot_info():
     masked = (
         f"{cfg.api_key[:6]}...{cfg.api_key[-4:]}"
         if len(cfg.api_key) > 10
-        else (cfg.api_key or "")
+        else ("****" if cfg.api_key else "")
     )
     return {
         "riot_id": cfg.riot_id or f"{cfg.game_name}#{cfg.tag_line}",
@@ -334,14 +375,15 @@ def export_via_browser():
             status_code=400,
         )
 
-    timestamp = int(time.time())
+    timestamp = uuid.uuid4().hex
     output_png = appdata_dir / "output" / f"overlay_{timestamp}.png"
     latest_png = appdata_dir / "output" / "overlay_latest.png"
 
     ok = export_html_to_png(html_file, output_png, width=1920, height=1080)
     if ok:
         try:
-            shutil.copy2(output_png, latest_png)
+            with EXPORT_LOCK:
+                atomic_write(latest_png, output_png.read_bytes())
         except Exception as exc:
             logger.warning("Could not copy to overlay_latest.png: %s", exc)
         return {
@@ -358,84 +400,45 @@ def export_via_browser():
 
 
 @app.post("/api/export/base64")
-async def export_base64_image(request: Request):
-    """
-    Nhận chuỗi ảnh PNG Base64 từ Frontend (kết xuất qua html-to-image ở độ phân giải 1920x1080),
-    giải mã và lưu vào get_appdata_dir() / "output" / f"overlay_{timestamp}.png".
-    Yêu cầu X-Studio-Token.
-    """
+def export_base64_image(body: ExportRequest):
+    encoded = body.image_base64
+    if encoded.startswith("data:"):
+        if not encoded.startswith("data:image/png;base64,"):
+            raise HTTPException(422, "Expected a PNG data URL")
+        encoded = encoded.split(",", 1)[1]
     try:
-        body = await request.json()
-    except Exception:
-        return JSONResponse(
-            {"success": False, "error": "Invalid JSON body"}, status_code=400
-        )
-
-    image_b64 = body.get("image_base64") or body.get("image") or ""
-    if not image_b64:
-        return JSONResponse(
-            {"success": False, "error": "Missing image_base64 field in body"},
-            status_code=400,
-        )
-
-    if "," in image_b64:
-        image_b64 = image_b64.split(",", 1)[1]
-
-    try:
-        data = base64.b64decode(image_b64)
+        data = base64.b64decode(encoded, validate=True)
+        with Image.open(io.BytesIO(data)) as img:
+            if img.format != "PNG" or img.size != (1920, 1080):
+                raise ValueError("Expected PNG 1920x1080")
+            img.verify()
+        with Image.open(io.BytesIO(data)) as img:
+            img.load()
     except Exception as exc:
-        return JSONResponse(
-            {"success": False, "error": f"Base64 decode failed: {exc}"},
-            status_code=400,
-        )
-
-    # Magic bytes check cho file PNG hợp lệ
-    if not data.startswith(b"\x89PNG\r\n\x1a\n"):
-        return JSONResponse(
-            {"success": False, "error": "Decoded data is not a valid PNG image"},
-            status_code=400,
-        )
-
-    appdata_dir = get_appdata_dir()
-    output_dir = appdata_dir / "output"
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    timestamp = int(time.time())
-    file_path = output_dir / f"overlay_{timestamp}.png"
+        raise HTTPException(422, "Invalid PNG; expected a complete 1920x1080 image") from exc
+    output_dir = get_appdata_dir() / "output"
+    file_path = output_dir / f"overlay_{uuid.uuid4().hex}.png"
     latest_path = output_dir / "overlay_latest.png"
+    with EXPORT_LOCK:
+        atomic_write(file_path, data)
+        atomic_write(latest_path, data)
+    return {"success": True, "file_path": str(file_path), "latest_path": str(latest_path), "filename": file_path.name}
 
-    try:
-        with open(file_path, "wb") as f:
-            f.write(data)
-        shutil.copy2(file_path, latest_path)
-    except Exception as exc:
-        logger.error("Failed to write exported PNG: %s", exc)
-        return JSONResponse(
-            {"success": False, "error": f"Write failed: {exc}"},
-            status_code=500,
-        )
 
-    logger.info("Base64 PNG successfully saved: %s (%d bytes)", file_path.name, len(data))
-    return {
-        "success": True,
-        "file_path": str(file_path.resolve()),
-        "latest_path": str(latest_path.resolve()),
-        "filename": file_path.name,
-        "size": len(data),
-    }
+@app.post("/api/riot/settings")
+def save_riot_settings(body: RiotSettings):
+    if not _bridge_ref:
+        raise HTTPException(503, "Application is starting")
+    return _bridge_ref.save_app_config(body.model_dump(exclude_none=True))
 
 
 @app.post("/api/riot/fetch")
 def trigger_riot_fetch():
-    """Kích hoạt tải trận đấu mới nhất."""
-    if _bridge_ref:
-        return _bridge_ref.fetch_live_now()
-    return {"success": False, "error": "Cơ chế Fetch chỉ khả dụng khi chạy qua app"}
+    if not _bridge_ref:
+        raise HTTPException(503, "Application is starting")
+    return _bridge_ref.fetch_live_now()
 
 
-# --------------------------------------------------------------------- #
-# /api/augments — Danh sách lõi nâng cấp tiếng Anh từ DDragon (en_US)
-# --------------------------------------------------------------------- #
 @app.get("/api/augments")
 def get_augments_list():
     """
@@ -501,6 +504,8 @@ async def save_custom_augments(request: Request):
             {"success": False, "error": "Invalid JSON body"}, status_code=400
         )
 
+    if not isinstance(body, dict):
+        raise HTTPException(422, "Expected an object")
     raw_augments = body.get("custom_augments", [])
     if not isinstance(raw_augments, list):
         return JSONResponse(
@@ -510,7 +515,9 @@ async def save_custom_augments(request: Request):
 
     # Chuẩn hóa & kiểm tra an toàn (K3: Chống path traversal)
     normalized: list = []
-    for item in raw_augments[:6]:
+    if len(raw_augments) > 6:
+        raise HTTPException(422, "At most six augment entries are allowed")
+    for item in raw_augments:
         if item is not None and not validate_custom_augment(item):
             return JSONResponse(
                 {"success": False, "error": f"Invalid augment identifier: {item}"},
@@ -526,33 +533,18 @@ async def save_custom_augments(request: Request):
 
     # Nếu tất cả đều None → xóa custom_augments để dùng auto từ trận đấu
     if all(v is None for v in normalized):
-        current_cfg.pop("custom_augments", None)
+        current_cfg["custom_augments"] = []
     else:
         current_cfg["custom_augments"] = normalized
 
     updated = save_overlay_config(current_cfg)
-
-    # Kích hoạt re-compile overlay HTML và thông báo WS ngay lập tức
+    compile_result = {"success": False, "error": "Application is starting"}
     if _bridge_ref:
         _bridge_ref.notify_frontend("onAppStateUpdate", {"overlay_config": updated})
-
-        def _recompile():
-            try:
-                _bridge_ref._compile_and_notify(source="AugmentsUpdate")
-            except Exception as exc:
-                logger.warning("Augments re-compile error: %s", exc)
-
-        threading.Thread(target=_recompile, daemon=True).start()
-    else:
-        # Standalone web mode (không có bridge) — chỉ broadcast config đã đổi
-        notify_sync({"type": "CONFIG_CHANGED", "overlay_config": updated})
-
-    return {"success": True, "overlay_config": updated}
+        compile_result = await asyncio.to_thread(_bridge_ref._compile_and_notify, "AugmentsUpdate")
+    return {"success": True, "overlay_config": updated, "compile": compile_result}
 
 
-# --------------------------------------------------------------------- #
-# /api/overlay-html — Endpoint mới cho smooth DOM-swap (không reload trang)
-# --------------------------------------------------------------------- #
 @app.get("/api/overlay-html")
 def get_overlay_inner_html():
     """
@@ -613,196 +605,16 @@ def get_overlay_inner_html():
 # --------------------------------------------------------------------- #
 @app.get("/overlay", response_class=HTMLResponse)
 def serve_overlay_html():
-    """
-    Phục vụ overlay cho OBS Browser Source: http://localhost:8080/overlay
-    Sử dụng smooth DOM-swap thay vì window.location.reload():
-      - Kết nối WS cục bộ.
-      - Khi nhận OVERLAY_RENDERED → fetch /api/overlay-html → swap body với fade animation.
-      - Không bao giờ reload trang → không flash/nhấp nháy trên OBS.
-    """
-    app_dir = get_app_dir()
-    overlay_path = app_dir / "output" / "overlay.html"
-
-    if not overlay_path.exists():
-        # Placeholder khi chưa có overlay
-        placeholder_html = """<!DOCTYPE html>
-<html lang="vi">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TFT Post-Match Overlay</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      background: #0a0a0f;
-      display: flex; align-items: center; justify-content: center;
-      min-height: 100vh; font-family: 'Segoe UI', sans-serif; color: #888;
-    }
-    .waiting {
-      text-align: center; padding: 40px;
-      border: 1px solid #222; border-radius: 12px; background: #111;
-    }
-    .waiting h2 { color: #c8aa6e; margin-bottom: 12px; font-size: 1.4rem; }
-    .dot { animation: blink 1.2s infinite; } .dot:nth-child(2) { animation-delay: .4s; } .dot:nth-child(3) { animation-delay: .8s; }
-    @keyframes blink { 0%,100%{opacity:.2} 50%{opacity:1} }
-  </style>
-</head>
-<body>
-  <div class="waiting" id="overlay-root">
-    <h2>⚔️ TFT Post-Match Studio</h2>
-    <p>Đang chờ dữ liệu từ Control Panel<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></p>
-    <p style="margin-top:8px;font-size:.85rem;color:#555">Mở Control Panel → Nhấn <b>Render</b></p>
-  </div>
-  LIVE_RELOAD_SCRIPT
-</body>
-</html>"""
-        content = placeholder_html
-    else:
-        try:
-            with open(overlay_path, encoding="utf-8") as f:
-                content = f.read()
-        except Exception:
-            content = "<html><body><p>Lỗi đọc overlay.html</p></body></html>"
-
-        # Chuẩn hóa đường dẫn
-        content = content.replace('src="../assets/', 'src="/assets/')
-        content = content.replace('src="../TFT_DDragon/', 'src="/TFT_DDragon/')
-        content = content.replace("url('../assets/", "url('/assets/")
-        content = content.replace('href="overlay.css"', 'href="/overlay.css"')
-
-        if "<head>" in content:
-            content = content.replace("<head>", '<head>\n  <base href="/">')
-
-    # Script real-time smooth DOM-swap (KHÔNG reload trang)
-    live_reload_script = """
-    <!-- TFT Studio: Real-time Smooth Overlay Update -->
-    <style>
-      @keyframes tft-fade-in {
-        from { opacity: 0; transform: scale(0.998); }
-        to   { opacity: 1; transform: scale(1); }
-      }
-      .tft-updating { pointer-events: none; }
-      .tft-fade-in  { animation: tft-fade-in 0.35s ease-out forwards; }
-    </style>
-    <script>
-    (function() {
-      'use strict';
-      var loc = window.location;
-      var proto = loc.protocol === 'https:' ? 'wss:' : 'ws:';
-      var wsUrl = proto + '//' + (loc.host || '127.0.0.1:8080') + '/ws';
-      var socket = null;
-      var reconnectTimer = null;
-      var isUpdating = false;
-
-      function smoothUpdate() {
-        if (isUpdating) return;
-        isUpdating = true;
-
-        fetch('/api/overlay-html?_t=' + Date.now())
-          .then(function(r) { return r.json(); })
-          .then(function(data) {
-            if (!data.ready || !data.html) { isUpdating = false; return; }
-
-            var root = document.getElementById('overlay-root') || document.body;
-            root.classList.add('tft-updating');
-
-            // Fade out
-            root.style.transition = 'opacity 0.2s ease-out';
-            root.style.opacity = '0';
-
-            setTimeout(function() {
-              // Swap nội dung
-              if (root === document.body) {
-                root.innerHTML = data.html;
-              } else {
-                root.innerHTML = data.html;
-              }
-
-              // Fade in
-              root.style.opacity = '1';
-              root.classList.remove('tft-updating');
-              root.classList.add('tft-fade-in');
-              setTimeout(function() { root.classList.remove('tft-fade-in'); isUpdating = false; }, 400);
-            }, 200);
-          })
-          .catch(function() { isUpdating = false; });
-      }
-
-      // Gắn ra window để PyWebView bridge gọi được trực tiếp
-      window.smoothUpdate = smoothUpdate;
-
-      function connect() {
-        if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
-        try {
-          socket = new WebSocket(wsUrl);
-
-          socket.onmessage = function(event) {
-            try {
-              var msg = JSON.parse(event.data);
-              if (msg.type === 'OVERLAY_RENDERED' || msg.type === 'CONFIG_CHANGED') {
-                smoothUpdate();
-              }
-              // INITIAL_STATE: cập nhật nếu đang ở placeholder
-              if (msg.type === 'INITIAL_STATE') {
-                var root = document.getElementById('overlay-root');
-                if (root && root.querySelector('.waiting')) {
-                  smoothUpdate();
-                }
-              }
-            } catch(e) {}
-          };
-
-          socket.onopen = function() {
-            console.log('[TFT Overlay] Connected to local server');
-          };
-
-          socket.onclose = function() {
-            socket = null;
-            reconnectTimer = setTimeout(connect, 1500);
-          };
-
-          socket.onerror = function() {
-            if (socket) socket.close();
-          };
-        } catch(e) {
-          reconnectTimer = setTimeout(connect, 2000);
-        }
-      }
-
-      // Bắt đầu kết nối
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', connect);
-      } else {
-        connect();
-      }
-    })();
-    </script>
-    """
-
-    # Inject script vào HTML
-    if "LIVE_RELOAD_SCRIPT" in content:
-        content = content.replace("LIVE_RELOAD_SCRIPT", live_reload_script)
-    elif "</body>" in content:
-        content = content.replace("</body>", f"{live_reload_script}\n</body>")
-    else:
-        content += live_reload_script
-
-    return HTMLResponse(
-        content,
-        headers={
-            "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
-            "Pragma": "no-cache",
-            "Expires": "0",
-        },
-    )
+    shell = resolve_resource("templates/overlay-shell.html").read_text(encoding="utf-8")
+    return HTMLResponse(shell, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/api/overlay-config-public")
 def get_obs_info():
     """Trả về thông tin cần thiết cho người dùng cài OBS."""
     return {
-        "obs_browser_source_url": "http://localhost:8080/overlay",
-        "control_panel_url": "http://localhost:8080/app",
+        "obs_browser_source_url": f"http://127.0.0.1:{_runtime_port}/overlay",
+        "control_panel_url": f"http://127.0.0.1:{_runtime_port}/app/",
         "width": 1920,
         "height": 1080,
     }
@@ -840,9 +652,20 @@ def serve_overlay_png():
 # Static Files Mount
 # --------------------------------------------------------------------- #
 app_dir = get_app_dir()
-assets_path = resolve_resource("assets")
-if assets_path.exists():
-    app.mount("/assets", StaticFiles(directory=str(assets_path)), name="assets")
+@app.get("/assets/{relative_path:path}")
+def serve_asset(relative_path: str):
+    from pathlib import Path
+    relative = Path(relative_path.replace("\\", "/"))
+    if relative.is_absolute() or ".." in relative.parts or ":" in relative_path:
+        raise HTTPException(404)
+    try:
+        resolved = resolve_resource(Path("assets") / relative)
+    except ValueError as exc:
+        raise HTTPException(404) from exc
+    if not resolved.is_file():
+        raise HTTPException(404)
+    return FileResponse(resolved)
+
 
 ddragon_path = resolve_resource("TFT_DDragon")
 if ddragon_path.exists():
@@ -861,7 +684,7 @@ if dist_dir.exists():
 
     @app.get("/")
     def index_redirect():
-        return FileResponse(dist_dir / "index.html")
+        return RedirectResponse("/app/")
 
 
 # --------------------------------------------------------------------- #
@@ -870,6 +693,7 @@ if dist_dir.exists():
 def start_server(port: int = 8080) -> None:
     """Khởi động Uvicorn trên localhost (127.0.0.1) trong daemon thread."""
     global _server_thread, _is_running
+    set_runtime_port(port)
     if _is_running:
         return
 
@@ -887,11 +711,16 @@ def start_server(port: int = 8080) -> None:
             log_level="warning",
         )
         server = uvicorn.Server(config)
-        server.run()
+        set_uvicorn_server(server)
+        try:
+            server.run()
+        finally:
+            global _is_running
+            _is_running = False
 
     _server_thread = threading.Thread(target=run, daemon=True, name="TFTStudioServer")
     _server_thread.start()
 
 
 def is_server_running() -> bool:
-    return _is_running
+    return bool(_uvicorn_server and _uvicorn_server.started)

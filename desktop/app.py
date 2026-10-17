@@ -128,7 +128,6 @@ def main() -> None:
     server_port = int(cfg.get("server_port", SERVER_PORT))
 
     # Khởi động Local HTTP Server (127.0.0.1 only)
-    start_server(port=server_port)
 
     print(f"[✓] Local Server:      http://127.0.0.1:{server_port}", flush=True)
     print(f"[✓] OBS Browser Source: http://localhost:{server_port}/overlay", flush=True)
@@ -140,6 +139,7 @@ def main() -> None:
 
     match_service = MatchService()
     bridge = StudioBridge(match_service=match_service)
+    start_server(port=server_port)
 
     # Tự động tải trận mới nhất từ thông tin trong .env
     app_cfg = AppConfig.load()
@@ -155,10 +155,8 @@ def main() -> None:
     overlay_url = f"http://127.0.0.1:{server_port}/overlay"
 
     # Control Panel: load từ file build hoặc local server
-    if WEB_OVERLAY_DIST.exists():
-        controller_url = WEB_OVERLAY_DIST.resolve().as_uri()
-    else:
-        controller_url = f"http://127.0.0.1:{server_port}/app"
+    # Same-origin HTTP avoids null-origin CORS and uses the same resource routes.
+    controller_url = f"http://127.0.0.1:{server_port}/app/?desktop=pywebview"
 
     # Cửa sổ 1: Control Panel (480x580)
     controller_win = webview.create_window(
@@ -198,6 +196,7 @@ def main() -> None:
     # Dọn dẹp khi đóng app
     def on_closed():
         logger.info("Shutting down TFT Studio")
+        bridge.close()
         with contextlib.suppress(Exception):
             overlay_win.destroy()
 
