@@ -4,12 +4,13 @@
  * State machine và logic kiểm tra & cài đặt cập nhật cho Desktop app.
  * Tuân thủ quy tắc:
  *   1. Không tự ý cập nhật mà không có sự xác nhận của người dùng.
- *   2. Bắt buộc dừng Python sidecar trước khi downloadAndInstall() để tránh khóa file .exe.
+ *   2. Tải/xác minh trước, dừng Python sidecar ngay trước install() để giải phóng file .exe.
  */
 
 import { check, type Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { invoke } from '@tauri-apps/api/core';
+import { StudioApi } from './api';
 
 export type UpdateState =
   | 'idle'
@@ -58,18 +59,11 @@ export async function installConfirmedUpdate(
   updateInfo: UpdateInfo,
   onProgress?: (downloadedBytes: number, totalBytes?: number) => void
 ): Promise<void> {
-  // 1. Dừng tiến trình Python FastAPI sidecar trước để giải phóng file lock & cổng 8080
-  try {
-    await invoke('stop_backend_sidecar');
-  } catch (e) {
-    console.warn('[Updater] stop_backend_sidecar warning:', e);
-  }
-
-  // 2. Tải và cài đặt gói cập nhật đã xác minh chữ ký
+  // Download and verify while the existing backend remains available.
   let downloaded = 0;
   let contentLength: number | undefined;
 
-  await updateInfo.rawUpdate.downloadAndInstall((event) => {
+  await updateInfo.rawUpdate.download((event) => {
     switch (event.event) {
       case 'Started':
         contentLength = event.data.contentLength;
@@ -83,6 +77,24 @@ export async function installConfirmedUpdate(
     }
   });
 
-  // 3. Khởi động lại ứng dụng vào phiên bản mới
-  await relaunch();
+  let stopAttempted = false;
+  try {
+    stopAttempted = true;
+    await invoke('stop_backend_sidecar');
+    StudioApi.invalidateConnection();
+    await updateInfo.rawUpdate.install();
+    await relaunch();
+  } catch (error) {
+    if (stopAttempted) {
+      try {
+        const connection = await invoke<{ready: boolean}>('get_backend_connection_info');
+        if (!connection.ready) await invoke('start_backend_sidecar');
+        StudioApi.invalidateConnection();
+        await StudioApi.getConnectionInfo();
+      } catch (recoveryError) {
+        throw new Error(`Cập nhật thất bại: ${String(error)}. Không thể phục hồi backend: ${String(recoveryError)}. Hãy khởi động lại ứng dụng.`);
+      }
+    }
+    throw error;
+  }
 }

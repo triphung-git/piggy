@@ -13,6 +13,7 @@ import {
   Save,
 } from 'lucide-react';
 import { StudioApi, type AugmentItem } from '../lib/api';
+import StudioSettings from './StudioSettings';
 
 // ---- Augment types ----
 interface AugmentSlotState {
@@ -81,6 +82,7 @@ declare global {
   interface Window {
     pywebview?: {
       api?: {
+        get_backend_connection_info?: () => Promise<any>;
         render_overlay?: () => Promise<{
           success: boolean;
           match_id?: string;
@@ -113,7 +115,12 @@ export default function SourceTransformPanel() {
 
   // OBS connection status
   const [obsConnected, setObsConnected] = useState(false);
-  const obsUrl = 'http://localhost:8080/overlay';
+  const [backendUrl, setBackendUrl] = useState('');
+  const obsUrl = backendUrl ? `${backendUrl}/overlay` : '';
+  const [connectionAttempt, setConnectionAttempt] = useState(0);
+  const [message, setMessage] = useState('');
+  const dirty = useRef(false);
+  const catalog = useRef<AugmentItem[]>([]);
 
   // Augments Selector State
   const [augmentsList, setAugmentsList] = useState<AugmentItem[]>([]);
@@ -126,95 +133,64 @@ export default function SourceTransformPanel() {
   const [isSavingAugments, setIsSavingAugments] = useState(false);
   const [augmentsLoaded, setAugmentsLoaded] = useState(false);
 
-  // Nạp danh sách augments khi mở app
   useEffect(() => {
-    const initAugments = async () => {
-      try {
-        const list = await StudioApi.getAugmentsList();
-        setAugmentsList(list);
-        setAugmentsLoaded(true);
-
-        // Load custom_augments hiện tại từ config
-        const cfgRes = await StudioApi.getConfig();
-        if (cfgRes?.custom_augments && Array.isArray(cfgRes.custom_augments)) {
-          setSlotsState(parseCustomAugmentsToSlots(cfgRes.custom_augments, list));
-        }
-      } catch (e) {
-        console.warn('Could not load augments:', e);
-        setAugmentsLoaded(true);
-      }
-    };
-
-    initAugments();
-
-    // Callback nhận thông báo từ Python Backend
-    window.onAppStateUpdate = (data: any) => {
-      if (data?.overlay_config?.custom_augments !== undefined) {
-        const ca = data.overlay_config.custom_augments;
-        setSlotsState(parseCustomAugmentsToSlots(ca, augmentsList));
-      }
-      if (data?.fetch_status) {
-        if (data.fetch_status.success) {
-          setToastMessage(data.fetch_status.message || 'Đã nạp trận mới nhất');
-          setShowSuccessToast(true);
-          setTimeout(() => setShowSuccessToast(false), 4000);
-        }
-      }
-      if (data?.active_match) {
-        setToastMessage(`Trận mới: ${data.active_match.match_id || 'Đã đồng bộ'}`);
-        setShowSuccessToast(true);
-        setTimeout(() => setShowSuccessToast(false), 3000);
-      }
-    };
-
-    // Kết nối WS cục bộ để nhận thông báo OVERLAY_RENDERED
+    let disposed = false;
     let socket: WebSocket | null = null;
-    let reconnectTimer: any = null;
-
-    const connectWs = () => {
+    let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+    const onState = (data: any) => {
+      if (disposed) return;
+      if (!dirty.current && Array.isArray(data?.overlay_config?.custom_augments)) {
+        setSlotsState(parseCustomAugmentsToSlots(data.overlay_config.custom_augments, catalog.current));
+      }
+      if (data?.fetch_status) setMessage(data.fetch_status.message || data.fetch_status.error || '');
+    };
+    window.onAppStateUpdate = onState;
+    const connect = async () => {
       try {
-        socket = new WebSocket('ws://127.0.0.1:8080/ws');
-
-        socket.onopen = () => {
-          setObsConnected(true);
-        };
-
-        socket.onmessage = (event) => {
+        const connection = await StudioApi.getConnectionInfo();
+        if (disposed) return;
+        setBackendUrl(connection.baseUrl);
+        socket = new WebSocket(connection.baseUrl.replace(/^http/, 'ws') + '/ws');
+        socket.onopen = () => { if (!disposed) setObsConnected(true); };
+        socket.onmessage = event => {
+          if (disposed) return;
           try {
             const msg = JSON.parse(event.data);
-            if (msg.type === 'OVERLAY_RENDERED') {
-              const src = msg.source ? ` (${msg.source})` : '';
-              setToastMessage(`Overlay cập nhật: ${msg.match_id || 'OK'}${src}`);
-              setToastDuration('instant');
-              setShowSuccessToast(true);
-              setTimeout(() => setShowSuccessToast(false), 3500);
-            }
-          } catch (e) {}
+            if (msg.type === 'APP_STATE') onState(msg.data);
+            if (msg.type === 'RENDER_FAILED') setMessage(msg.error || 'Render thất bại');
+            if (msg.type === 'OVERLAY_RENDERED' && msg.success) setMessage(`Overlay đã cập nhật: ${msg.match_id || 'OK'}`);
+          } catch { setMessage('Không đọc được thông báo từ backend.'); }
         };
-
         socket.onclose = () => {
+          if (disposed) return;
           setObsConnected(false);
-          reconnectTimer = setTimeout(connectWs, 1500);
+          StudioApi.invalidateConnection();
+          reconnectTimer = setTimeout(connect, 1500);
         };
-
-        socket.onerror = () => {
-          if (socket) socket.close();
-        };
-      } catch (e) {
-        setObsConnected(false);
-        reconnectTimer = setTimeout(connectWs, 2000);
+        socket.onerror = () => socket?.close();
+      } catch (error) {
+        if (!disposed) { setObsConnected(false); setMessage(String(error)); }
       }
     };
-
-    if (window.location.protocol.startsWith('http')) {
-      connectWs();
-    }
-
-    return () => {
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      if (socket) socket.close();
+    const initialize = async () => {
+      try {
+        const [list, config] = await Promise.all([StudioApi.getAugmentsList(), StudioApi.getConfig()]);
+        if (disposed) return;
+        catalog.current = list;
+        setAugmentsList(list);
+        if (!dirty.current) setSlotsState(parseCustomAugmentsToSlots(config.custom_augments, list));
+        setAugmentsLoaded(true);
+        await connect();
+      } catch (error) { if (!disposed) setMessage(String(error)); }
     };
-  }, [augmentsList]);
+    void initialize();
+    return () => {
+      disposed = true;
+      clearTimeout(reconnectTimer);
+      if (socket) { socket.onclose = null; socket.onerror = null; socket.close(); }
+      if (window.onAppStateUpdate === onState) delete window.onAppStateUpdate;
+    };
+  }, [connectionAttempt]);
 
   // Lưu Augments và re-render overlay
   const handleSaveAugments = async () => {
@@ -233,7 +209,9 @@ export default function SourceTransformPanel() {
 
       const res = await StudioApi.saveCustomAugments(flatList);
       if (res?.success) {
-        setToastMessage('✓ Augments saved & overlay re-rendered!');
+        dirty.current = false;
+        setToastMessage(res.compile?.success ? 'Đã lưu lõi và render overlay.' : 'Đã lưu lõi; chưa render được overlay.');
+        if (!res.compile?.success) setMessage(res.compile?.error || 'Chưa có dữ liệu trận.');
         setShowSuccessToast(true);
         setTimeout(() => setShowSuccessToast(false), 4000);
       } else {
@@ -268,7 +246,7 @@ export default function SourceTransformPanel() {
           setToastMessage(`✓ Overlay rendered: ${res.match_id || 'OK'}`);
           setToastDuration(`${elapsedSec}s`);
           setShowSuccessToast(true);
-          setIsVisible(true);
+
           setTimeout(() => setShowSuccessToast(false), 4500);
         } else {
           alert('Render Error: ' + (res?.error || 'Unknown error'));
@@ -282,11 +260,10 @@ export default function SourceTransformPanel() {
 
   const handleToggleVisibility = async () => {
     const nextVis = !isVisible;
-    setIsVisible(nextVis);
     try {
-      await StudioApi.toggleOverlayVisibility(nextVis);
+      setIsVisible(await StudioApi.toggleOverlayVisibility(nextVis));
     } catch (e) {
-      console.warn('Toggle overlay error:', e);
+      setMessage(String(e));
     }
   };
 
@@ -320,7 +297,7 @@ export default function SourceTransformPanel() {
   return (
     <div className={`w-[460px] max-w-full bg-zinc-900/95 text-zinc-200 rounded-xl border border-zinc-800 shadow-2xl backdrop-blur-md select-none font-sans transition-all flex flex-col
       ${!isVisible ? 'opacity-90' : 'opacity-100'}`}
-      style={{ maxHeight: '100dvh' }}
+      style={{ maxHeight: 'calc(100dvh - 32px)' }}
     >
       {/* 1. Header — cố định, không co rút */}
       <div className="px-3.5 py-2.5 bg-zinc-950/80 border-b border-zinc-800/80 flex flex-col gap-1 shrink-0">
@@ -374,6 +351,11 @@ export default function SourceTransformPanel() {
           scrollbarColor: '#3f3f46 transparent',
         }}
       >
+        <StudioSettings key={connectionAttempt} onMessage={setMessage} />
+        {message && <div role="status" className="break-words rounded border border-zinc-700 p-2 text-xs text-zinc-300">{message}</div>}
+        {!obsConnected && <button className="rounded bg-zinc-800 p-2 text-xs" onClick={() => {
+          StudioApi.invalidateConnection(); setConnectionAttempt(n => n + 1); setMessage('Đang kết nối lại…');
+        }}>Kết nối lại</button>}
         {/* Augments Selection Card */}
         <div className="bg-zinc-950/70 border border-zinc-800/80 rounded-lg p-3 flex flex-col gap-2.5 shadow-inner">
           <div className="flex items-center justify-between border-b border-zinc-800/60 pb-1.5">
@@ -411,16 +393,18 @@ export default function SourceTransformPanel() {
                   <div key={slotIdx} className="flex flex-col gap-2 p-2.5 rounded-lg bg-zinc-900/50 border border-zinc-800/70">
                     <AugmentSlotPicker
                       slotIndex={slotIdx}
+                      backendUrl={backendUrl}
                       augmentsList={augmentsList}
                       value={currentMain}
                       onChange={img => {
+                        dirty.current = true;
                         setSlotsState(prev => {
                           const next = [...prev];
                           const newMainAug = img ? augmentsList.find(a => a.image === img) : null;
                           const isDest = getDestinyTier(newMainAug) !== null;
                           next[slotIdx] = {
                             main: img,
-                            bonus: isDest ? next[slotIdx]?.bonus || null : null,
+                            bonus: isDest && getDestinyTier(newMainAug) === destinyTier ? next[slotIdx]?.bonus || null : null,
                           };
                           return next;
                         });
@@ -441,9 +425,11 @@ export default function SourceTransformPanel() {
                           slotIndex={slotIdx}
                           labelOverride={`Bonus Slot ${['I', 'II', 'III'][slotIdx]} (Cùng bậc)`}
                           filterTier={destinyTier}
+                          backendUrl={backendUrl}
                           augmentsList={augmentsList}
                           value={slotsState[slotIdx]?.bonus || null}
                           onChange={img => {
+                            dirty.current = true;
                             setSlotsState(prev => {
                               const next = [...prev];
                               next[slotIdx] = {
@@ -472,7 +458,7 @@ export default function SourceTransformPanel() {
           <div className="bg-amber-950/40 border border-amber-800/50 text-amber-300 text-[11px] px-3 py-1.5 rounded-md flex items-center justify-between font-mono">
             <div className="flex items-center gap-1.5">
               <EyeOff className="w-3.5 h-3.5 text-amber-400" />
-              <span>Overlay Hidden from Stream Output</span>
+              <span>Cửa sổ Preview đang ẩn; nguồn OBS hoạt động độc lập</span>
             </div>
           </div>
         )}
@@ -573,6 +559,7 @@ export default function SourceTransformPanel() {
 // AugmentSlotPicker — Searchable combobox cho 1 slot lõi
 // ============================================================
 interface AugmentSlotPickerProps {
+  backendUrl: string;
   slotIndex: number;
   labelOverride?: string;
   filterTier?: number;
@@ -582,6 +569,7 @@ interface AugmentSlotPickerProps {
 }
 
 function AugmentSlotPicker({
+  backendUrl,
   slotIndex,
   labelOverride,
   filterTier,
@@ -652,7 +640,7 @@ function AugmentSlotPicker({
   };
 
   const slotLabel = labelOverride || (['Augment I', 'Augment II', 'Augment III'][slotIndex] ?? `Slot ${slotIndex + 1}`);
-  const IMG_BASE = '/TFT_DDragon/img/augment/';
+  const IMG_BASE = `${backendUrl}/TFT_DDragon/img/augment/`;
 
   return (
     <div ref={containerRef} className="relative flex flex-col gap-1">

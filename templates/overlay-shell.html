@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TFT Post-Match Overlay</title>
+  <link rel="stylesheet" href="/overlay.css">
+  <style>
+    html, body { margin: 0; background: transparent; overflow: hidden; }
+    .waiting { color: #c8aa6e; padding: 40px; font: 24px sans-serif; }
+  </style>
+</head>
+<body>
+  <div id="overlay-root"><div class="waiting">Đang chờ dữ liệu từ Control Panel…</div></div>
+  <script>
+    (() => {
+      let updating = false;
+      let pending = false;
+      let socket;
+      let timer;
+      let disposed = false;
+      function scale() {
+        const scaler = document.getElementById('overlay-scaler');
+        if (scaler) scaler.style.transform = `scale(${Math.min(innerWidth / 1920, innerHeight / 1080)})`;
+      }
+      async function smoothUpdate() {
+        if (updating) { pending = true; return; }
+        updating = true;
+        try {
+          do {
+            pending = false;
+            const response = await fetch('/api/overlay-html', {cache: 'no-store'});
+            if (!response.ok) throw new Error('Overlay unavailable');
+            const data = await response.json();
+            if (data.ready && data.html) {
+              document.getElementById('overlay-root').innerHTML = data.html;
+              scale();
+            }
+          } while (pending);
+        } catch (error) {
+          console.warn('[Overlay]', error);
+        } finally { updating = false; }
+      }
+      function connect() {
+        if (disposed) return;
+        socket = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws`);
+        socket.onopen = smoothUpdate;
+        socket.onmessage = event => {
+          try {
+            const message = JSON.parse(event.data);
+            if (message.type === 'INITIAL_STATE' || (message.type === 'OVERLAY_RENDERED' && message.success)) smoothUpdate();
+          } catch (error) { console.warn('[Overlay] Invalid event', error); }
+        };
+        socket.onclose = () => { if (!disposed) timer = setTimeout(connect, 1500); };
+        socket.onerror = () => socket.close();
+      }
+      window.smoothUpdate = smoothUpdate;
+      addEventListener('resize', scale);
+      addEventListener('beforeunload', () => {
+        disposed = true;
+        clearTimeout(timer);
+        if (socket) socket.close();
+      });
+      smoothUpdate();
+      connect();
+    })();
+  </script>
+</body>
+</html>

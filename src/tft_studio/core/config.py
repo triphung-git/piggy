@@ -14,6 +14,8 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from tft_studio.core.paths import get_appdata_dir, get_resource_dir
+from tft_studio.core.schemas import OverlayConfig
+from tft_studio.core.storage import CONFIG_LOCK, atomic_write
 
 try:
     from dotenv import load_dotenv
@@ -161,7 +163,14 @@ class AppConfig:
 
     @staticmethod
     def save_env_values(values: dict[str, Any]) -> None:
+        with CONFIG_LOCK:
+            AppConfig._save_env_values(values)
+
+    @staticmethod
+    def _save_env_values(values: dict[str, Any]) -> None:
         """Lưu các giá trị cập nhật vào file .env."""
+        if any("\n" in str(v) or "\r" in str(v) for v in values.values()):
+            raise ConfigError("Configuration values cannot contain newlines")
         current_lines: list[str] = []
         if ENV_PATH.exists():
             with open(ENV_PATH, encoding="utf-8") as f:
@@ -197,8 +206,7 @@ class AppConfig:
             if v_key in values and v_key not in updated_keys:
                 new_lines.append(f"{env_var}={values[v_key]}\n")
 
-        with open(ENV_PATH, "w", encoding="utf-8") as f:
-            f.writelines(new_lines)
+        atomic_write(ENV_PATH, "".join(new_lines))
 
         reload_env()
 
@@ -220,7 +228,7 @@ def load_overlay_config() -> dict[str, Any]:
         try:
             with open(OVERLAY_CONFIG_PATH, encoding="utf-8") as f:
                 loaded = json.load(f)
-                default_config.update(loaded)
+                default_config.update(OverlayConfig.model_validate(loaded).model_dump())
         except Exception as exc:
             logger.warning("Không thể đọc overlay_config.json: %s", exc)
 
@@ -229,11 +237,12 @@ def load_overlay_config() -> dict[str, Any]:
 
 def save_overlay_config(data: dict[str, Any]) -> dict[str, Any]:
     """Lưu cập nhật vào file overlay_config.json."""
-    current = load_overlay_config()
-    current.update(data)
-    with open(OVERLAY_CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(current, f, ensure_ascii=False, indent=2)
-    return current
+    with CONFIG_LOCK:
+        current = load_overlay_config()
+        current.update(data)
+        validated = OverlayConfig.model_validate(current).model_dump()
+        atomic_write(OVERLAY_CONFIG_PATH, json.dumps(validated, ensure_ascii=False, indent=2))
+        return validated
 
 
 def is_configured() -> bool:

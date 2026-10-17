@@ -1,18 +1,41 @@
 name: CI
 
 on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Exact commit to test when called by Release
+        type: string
+        required: false
+        default: ""
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+
 jobs:
+  workflow-check:
+    name: GitHub Actions workflow validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+      - uses: docker://rhysd/actionlint:1.7.12
+
   python-test:
     name: Python Lint & Tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -32,12 +55,18 @@ jobs:
       - name: Run Pytest Test Suite
         run: pytest -v
 
+      - name: Smoke test real sidecar
+        run: python scripts/smoke_sidecar.py
+
   frontend-check:
     name: Frontend TypeScript & Build Check
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -52,12 +81,18 @@ jobs:
         working-directory: "Web Overlay"
         run: npm run build
 
+      - name: Test release publication guards
+        run: node --test tests/release_github.test.cjs
+
   sidecar-dry-run:
     name: Sidecar Packaging Dry-Run
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -76,3 +111,33 @@ jobs:
         run: |
           python scripts/build_sidecar.py
           test -f src-tauri/binaries/tft-backend-x86_64-unknown-linux-gnu
+
+      - name: Smoke test packaged sidecar
+        run: python scripts/smoke_sidecar.py --binary src-tauri/binaries/tft-backend-x86_64-unknown-linux-gnu
+
+  tauri-check:
+    name: Windows Tauri compilation
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - name: Install dependencies and build assets
+        run: |
+          python -m pip install -r requirements.txt
+          npm --prefix "Web Overlay" ci
+          npm --prefix "Web Overlay" run build
+          python scripts/build_sidecar.py
+      - name: Check Rust and generated Tauri configuration
+        run: cargo check --manifest-path src-tauri/Cargo.toml

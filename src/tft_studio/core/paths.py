@@ -174,26 +174,14 @@ def resolve_resource(relative_path: str | Path) -> Path:
     4. Thử tìm ở thư mục gốc dự án.
     """
     rel = Path(relative_path)
-
-    # 1. Kiểm tra override trong appdata (ví dụ người dùng thêm avatar vào appdata/assets/avatars/)
-    override_path = get_appdata_dir() / rel
-    if override_path.exists():
-        return override_path
-
-    # 2. Kiểm tra tài nguyên chuẩn trong get_resource_dir()
-    resource_path = get_resource_dir() / rel
-    if resource_path.exists():
-        return resource_path
-
-    # 3. Kiểm tra thư mục _up_ nếu Tauri v2 đóng gói từ thư mục cha
-    up_resource_path = get_resource_dir() / "_up_" / rel
-    if up_resource_path.exists():
-        return up_resource_path
-
-    # 4. Fallback thư mục gốc dự án
-    root_path = _find_project_root() / rel
-    if root_path.exists():
-        return root_path
-
-    return resource_path
-
+    if rel.is_absolute() or ".." in rel.parts:
+        raise ValueError("Resource path must be relative")
+    roots = [get_appdata_dir(), get_resource_dir(), get_resource_dir() / "_up_", _find_project_root()]
+    for root in roots:
+        candidate = (root / rel).resolve()
+        if candidate.is_relative_to(root.resolve()) and candidate.exists():
+            return candidate
+    fallback = (get_resource_dir() / rel).resolve()
+    if not fallback.is_relative_to(get_resource_dir().resolve()):
+        raise ValueError("Resource escapes its root")
+    return fallback

@@ -12,9 +12,13 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
-from tft_studio.core.paths import get_appdata_dir
+from PIL import Image
+
+from tft_studio.core.paths import get_appdata_dir, resolve_resource
+from tft_studio.core.storage import EXPORT_LOCK, RENDER_LOCK, atomic_write
 
 logger = logging.getLogger("export_service")
 
@@ -100,27 +104,43 @@ def export_html_to_png(
         return False
 
     output_png.parent.mkdir(parents=True, exist_ok=True)
-    html_uri = html_file.resolve().as_uri()
-
-    cmd = [
-        browser_exe,
-        "--headless",
-        f"--screenshot={output_png.resolve()}",
-        f"--window-size={width},{height}",
-        "--hide-scrollbars",
-        "--disable-gpu",
-        "--no-sandbox",
-        "--allow-file-access-from-files",
-        html_uri,
-    ]
-
     try:
-        res = subprocess.run(cmd, capture_output=True, text=True, timeout=25)
-        if output_png.exists() and output_png.stat().st_size > 10000:
-            logger.info("PNG exported: %s (%d bytes)", output_png.name, output_png.stat().st_size)
+        with EXPORT_LOCK, tempfile.TemporaryDirectory(prefix="tft-export-", dir=output_png.parent) as folder:
+            working = Path(folder)
+            snapshot = working / "overlay.html"
+            screenshot = working / "capture.png"
+            # Freeze HTML/CSS together. Resolve each resource individually so user
+            # overrides do not hide bundled fonts, stars or backgrounds.
+            with RENDER_LOCK:
+                content = html_file.read_text(encoding="utf-8")
+                css_path = html_file.parent / "overlay.css"
+                css = css_path.read_text(encoding="utf-8") if css_path.exists() else ""
+            import re
+            def local_url(match):
+                return resolve_resource(match.group(1)).as_uri()
+            content = re.sub(r"\.\./((?:assets|TFT_DDragon)/[^\"'<>]+)", local_url, content)
+            css = re.sub(r"\.\./((?:assets|TFT_DDragon)/[^\"')]+)", local_url, css)
+            content = content.replace('<link rel="stylesheet" href="overlay.css">', f"<style>{css}</style>")
+            snapshot.write_text(content, encoding="utf-8")
+            cmd = [
+                browser_exe, "--headless", f"--screenshot={screenshot}",
+                f"--window-size={width},{height}", "--hide-scrollbars", "--disable-gpu",
+                "--allow-file-access-from-files", "--virtual-time-budget=3000",
+                f"--user-data-dir={working / 'profile'}", snapshot.as_uri(),
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30,
+                                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            if result.returncode != 0 or not screenshot.exists():
+                logger.error("Browser export did not produce an image")
+                return False
+            with Image.open(screenshot) as img:
+                if img.format != "PNG" or img.size != (width, height):
+                    return False
+                img.verify()
+            with Image.open(screenshot) as img:
+                img.load()
+            atomic_write(output_png, screenshot.read_bytes())
             return True
-        logger.error("Render failed: %s", res.stderr)
-        return False
-    except Exception as exc:
-        logger.error("Render error: %s", exc)
+    except Exception:
+        logger.exception("PNG export failed")
         return False

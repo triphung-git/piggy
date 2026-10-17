@@ -11,6 +11,7 @@ Khởi chạy máy chủ FastAPI & WebSocket trong một tiến trình độc l�
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import logging
 import os
@@ -25,7 +26,7 @@ if hasattr(sys.stdout, "reconfigure"):
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8")
 
-from tft_studio.api.hub import app, set_uvicorn_server
+from tft_studio.api.hub import app, set_runtime_port, set_uvicorn_server
 from tft_studio.core.config import load_overlay_config
 from tft_studio.core.paths import ensure_user_config_initialized, get_appdata_dir
 
@@ -82,20 +83,14 @@ def main() -> None:
     args, _ = parser.parse_known_args()
 
     cfg = load_overlay_config()
-    port = args.port or int(os.environ.get("PORT") or cfg.get("server_port", 8080))
+    port = args.port or int(os.environ.get("TFT_BACKEND_PORT") or cfg.get("server_port", 8080))
+    if not 1 <= port <= 65535:
+        parser.error("Port must be between 1 and 65535")
     host = "127.0.0.1"
 
     logger.info("Starting FastAPI Uvicorn server on %s:%d", host, port)
 
-    # 3. Gắn startup handler phát tín hiệu sẵn sàng ra stdout
-    @app.on_event("startup")
-    async def on_startup_signal():
-        ready_payload = json.dumps(
-            {"event": "server_ready", "port": port, "status": "ok"},
-            ensure_ascii=False,
-        )
-        print(ready_payload, flush=True)
-        logger.info("Server is ready and bound to port %d", port)
+    set_runtime_port(port)
 
     # 4. Cấu hình và chạy Uvicorn Server
     config = uvicorn.Config(
@@ -109,7 +104,14 @@ def main() -> None:
     set_uvicorn_server(server)
 
     try:
-        server.run()
+        async def serve():
+            task = asyncio.create_task(server.serve())
+            while not server.started and not task.done():
+                await asyncio.sleep(0.05)
+            if server.started:
+                print(json.dumps({"event": "server_ready", "port": port, "status": "ok"}), flush=True)
+            await task
+        asyncio.run(serve())
     except Exception as exc:
         logger.critical("Sidecar encountered fatal error: %s", exc)
         sys.exit(1)

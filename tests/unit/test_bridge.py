@@ -21,7 +21,7 @@ def mock_match_service():
 
 def test_bridge_has_required_interface_methods(mock_match_service):
     """Ensure all required methods exist on StudioBridge to avoid AttributeError."""
-    with patch("desktop.bridge.ConfigWatcher"):
+    with patch("tft_studio.service.controller.ConfigWatcher"):
         bridge = StudioBridge(match_service=mock_match_service)
 
     expected_methods = [
@@ -51,7 +51,7 @@ def test_bridge_has_required_interface_methods(mock_match_service):
 
 def test_update_riot_id_validation(mock_match_service):
     """Test validation in update_riot_id."""
-    with patch("desktop.bridge.ConfigWatcher"):
+    with patch("tft_studio.service.controller.ConfigWatcher"):
         bridge = StudioBridge(match_service=mock_match_service)
 
     # Empty string

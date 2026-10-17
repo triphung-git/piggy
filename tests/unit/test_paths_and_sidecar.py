@@ -130,8 +130,13 @@ def test_hub_export_base64(monkeypatch, tmp_path):
     monkeypatch.setenv("STUDIO_SESSION_TOKEN", "token-12345")
     client = TestClient(app)
 
-    # 1x1 transparent PNG chuan Base64
-    valid_png_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+    import base64
+    import io
+
+    from PIL import Image
+    png = io.BytesIO()
+    Image.new("RGBA", (1920, 1080)).save(png, format="PNG")
+    valid_png_b64 = base64.b64encode(png.getvalue()).decode()
 
     res = client.post(
         "/api/export/base64",

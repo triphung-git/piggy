@@ -10,13 +10,13 @@ from __future__ import annotations
 import json
 import logging
 import threading
-import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from tft_studio.core.config import REGION_MAPPING, AppConfig
 from tft_studio.core.paths import get_app_dir
+from tft_studio.core.storage import atomic_write
 from tft_studio.data.parser import DDragonLoader, parse_tft_match
 from tft_studio.riot.client import RiotTFTClient
 
@@ -57,6 +57,10 @@ class MatchService:
 
     def __init__(self, config: AppConfig | None = None) -> None:
         self.config = config or AppConfig.load()
+        self.allow_disk_cache = True
+        self._state_lock = threading.RLock()
+        self._fetch_lock = threading.Lock()
+        self._generation = 0
         self.ddragon = DDragonLoader(language=self.config.language)
         self.cached_matches: list[dict[str, Any]] = []
         self.active_match: dict[str, Any] | None = None
@@ -73,6 +77,30 @@ class MatchService:
         self._polling_interval: int = 60
         self._is_polling: bool = False
         self._on_new_match_callback: Callable[[dict[str, Any]], None] | None = None
+
+    def _persist_cache(self, matches: list) -> None:
+        atomic_write(OUTPUT_DIR / "clean_matches_latest.json", json.dumps(matches, ensure_ascii=False))
+        atomic_write(OUTPUT_DIR / "cache_owner.json", json.dumps({"riot_id": self.config.riot_id, "region": self.config.region}))
+
+    def update_config(self, config: AppConfig) -> None:
+        with self._state_lock:
+            identity = (self.config.riot_id, self.config.region)
+            self.config = config
+            if identity != (config.riot_id, config.region):
+                self._generation += 1
+                self.active_puuid = None
+                self.active_match = None
+                self.cached_matches = []
+                self.last_seen_match_id = None
+                self.allow_disk_cache = False
+                self._persist_cache([])
+
+    def fetch_recent_matches(self, *args, request_generation: int | None = None, **kwargs) -> list[dict[str, Any]]:
+        generation = self._generation if request_generation is None else request_generation
+        with self._fetch_lock:
+            if generation != self._generation:
+                return []
+            return self._fetch_recent_matches(*args, generation=generation, **kwargs)
 
     def get_client(
         self,
@@ -110,21 +138,25 @@ class MatchService:
             match_routing=match_routing,
         )
         puuid = client.get_puuid_by_riot_id(game_name, tag_line)
-        self.active_puuid = puuid
+        with self._state_lock:
+            if (game_name, tag_line, region) == (self.config.game_name, self.config.tag_line, self.config.region):
+                self.active_puuid = puuid
         return puuid
 
-    def fetch_recent_matches(
+    def _fetch_recent_matches(
         self,
         game_name: str,
         tag_line: str,
         region: str,
         count: int = 5,
         progress_callback: Callable[[int, str], None] | None = None,
+        generation: int | None = None,
     ) -> list[dict[str, Any]]:
         """
         Lấy danh sách các trận gần nhất và bóc tách thành clean data.
         Báo cáo tiến trình qua progress_callback (0..100%, status text).
         """
+        generation = self._generation if generation is None else generation
         if progress_callback:
             progress_callback(10, f"Đang xác thực Riot ID: {game_name}#{tag_line}...")
 
@@ -140,13 +172,24 @@ class MatchService:
         )
 
         puuid = client.get_puuid_by_riot_id(game_name, tag_line)
-        self.active_puuid = puuid
+        with self._state_lock:
+            if generation != self._generation:
+                return []
+            self.active_puuid = puuid
 
         if progress_callback:
             progress_callback(25, "Đang tải danh sách ID trận đấu gần nhất...")
 
         match_ids = client.get_match_ids_by_puuid(puuid, count=count)
         if not match_ids:
+            with self._state_lock:
+                if generation != self._generation:
+                    return []
+                self.cached_matches = []
+                self.active_match = None
+                self.last_seen_match_id = None
+                self.allow_disk_cache = False
+                self._persist_cache([])
             if progress_callback:
                 progress_callback(100, "Không tìm thấy trận đấu TFT nào gần đây.")
             return []
@@ -169,20 +212,15 @@ class MatchService:
             except Exception as exc:
                 logger.warning("Failed to parse match %s: %s", m_id, exc)
 
-        self.cached_matches = parsed_list
-        if parsed_list:
-            self.active_match = parsed_list[0]
-            self.last_seen_match_id = parsed_list[0]["match_id"]
-
-            # Lưu file cache cho overlay
-            OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-            cache_file = OUTPUT_DIR / "clean_matches_latest.json"
-            try:
-                with open(cache_file, "w", encoding="utf-8") as f:
-                    json.dump(parsed_list, f, ensure_ascii=False, indent=2)
-                cleanup_cache_files(OUTPUT_DIR, max_files=20)
-            except Exception as e:
-                logger.warning("Failed to save match cache: %s", e)
+        with self._state_lock:
+            if generation != self._generation:
+                return []
+            self.cached_matches = parsed_list
+            self.active_match = parsed_list[0] if parsed_list else None
+            self.last_seen_match_id = self.active_match["match_id"] if self.active_match else None
+            self.allow_disk_cache = False
+            self._persist_cache(parsed_list)
+            cleanup_cache_files(OUTPUT_DIR, max_files=20)
 
         if progress_callback:
             progress_callback(100, f"Đã tải hoàn tất {len(parsed_list)} trận đấu!")
@@ -200,6 +238,7 @@ class MatchService:
         progress_callback: Callable[[int, str], None] | None = None,
     ) -> threading.Thread:
         """Chạy tải trận ngầm trong luồng riêng để không bao giờ làm đứng/khựng UI."""
+        generation = self._generation
         def _worker():
             try:
                 res = self.fetch_recent_matches(
@@ -208,12 +247,13 @@ class MatchService:
                     region=region,
                     count=count,
                     progress_callback=progress_callback,
+                    request_generation=generation,
                 )
-                if on_complete:
+                if on_complete and generation == self._generation:
                     on_complete(res)
             except Exception as e:
                 logger.warning("Background fetch match error: %s", e)
-                if on_error:
+                if on_error and generation == self._generation:
                     on_error(e)
 
         th = threading.Thread(target=_worker, daemon=True, name="AsyncMatchFetcher")
@@ -237,24 +277,23 @@ class MatchService:
         on_new_match_callback: Callable[[dict[str, Any]], None] | None = None,
     ) -> bool:
         """Khởi động luồng Auto-polling kiểm tra trận mới."""
-        if self._is_polling:
+        if self._polling_thread and self._polling_thread.is_alive():
             return False
 
         self._polling_interval = max(20, interval_seconds)
         self._on_new_match_callback = on_new_match_callback
-        self._polling_stop_event.clear()
+        self._polling_stop_event = threading.Event()
+        stop_event = self._polling_stop_event
 
         def _poll_worker() -> None:
             logger.info("Auto-polling started (interval: %ds)", self._polling_interval)
-            while not self._polling_stop_event.is_set():
-                time.sleep(self._polling_interval)
-                if self._polling_stop_event.is_set():
-                    break
+            while not stop_event.wait(self._polling_interval):
 
                 try:
                     if not self.config.api_key or not self.config.game_name:
                         continue
 
+                    generation = self._generation
                     puuid = self.active_puuid
                     if not puuid:
                         puuid = self.resolve_puuid(
@@ -271,10 +310,13 @@ class MatchService:
                             parsed = parse_tft_match(
                                 raw, target_puuid=puuid, language=self.config.language
                             )
-                            self.last_seen_match_id = new_id
-                            self.active_match = parsed
-                            self.cached_matches.insert(0, parsed)
-
+                            with self._state_lock:
+                                if generation != self._generation or stop_event.is_set():
+                                    continue
+                                self.last_seen_match_id = new_id
+                                self.active_match = parsed
+                                self.cached_matches = [parsed, *self.cached_matches[:19]]
+                                self._persist_cache(self.cached_matches)
                             if self._on_new_match_callback:
                                 self._on_new_match_callback(parsed)
                 except Exception as exc:
@@ -292,6 +334,8 @@ class MatchService:
         if not self._is_polling:
             return False
         self._polling_stop_event.set()
+        if self._polling_thread and self._polling_thread is not threading.current_thread():
+            self._polling_thread.join(timeout=1.0)
         self._is_polling = False
         return True
 

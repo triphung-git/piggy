@@ -5,166 +5,189 @@ on:
     tags:
       - "v*.*.*"
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag from main to release, e.g. v1.0.2 (select main as workflow branch)
+        required: true
+        type: string
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-${{ github.repository }}-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
-  build-and-publish:
+  prepare:
+    name: Validate tag, versions and signing configuration
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.guard.outputs.tag }}
+      sha: ${{ steps.guard.outputs.sha }}
+      version: ${{ steps.guard.outputs.version }}
+      prerelease: ${{ steps.guard.outputs.prerelease }}
+    steps:
+      # Run the guard from main, then read release manifests from the requested tag.
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate release
+        id: guard
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: python scripts/release_tools.py preflight
+
+  checks:
+    name: CI on the exact release commit
+    needs: prepare
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.prepare.outputs.sha }}
+
+  draft:
+    name: Create or resume a draft release
+    needs: [prepare, checks]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      id: ${{ steps.draft.outputs.id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/github-script@v7
+        id: draft
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
+          RELEASE_PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+        with:
+          script: |
+            const tools = require('./scripts/release_github.cjs');
+            await tools.createDraft({github, context, core});
+
+  build:
     name: Build & Package (${{ matrix.platform }})
+    needs: [prepare, draft]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: "windows-x86_64"
+          - platform: windows-x86_64
             os: windows-latest
             target: x86_64-pc-windows-msvc
-            args: "--target x86_64-pc-windows-msvc"
-
-          - platform: "macos-arm64"
-            os: macos-latest
+            python-arch: x64
+          - platform: macos-arm64
+            os: macos-15
             target: aarch64-apple-darwin
-            args: "--target aarch64-apple-darwin"
-
-          - platform: "linux-x86_64"
+            python-arch: arm64
+          - platform: linux-x86_64
             os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
-            args: "--target x86_64-unknown-linux-gnu"
-
+            python-arch: x64
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: "pip"
-
-      - name: Install Python Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt pyinstaller Pillow
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+          architecture: ${{ matrix.python-arch }}
+          cache: pip
+      - name: Install Python dependencies
+        run: python -m pip install -r requirements.txt
+      - uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: "npm"
+          cache: npm
           cache-dependency-path: |
             package-lock.json
             Web Overlay/package-lock.json
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-
-      - name: Install Linux System Dependencies
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - name: Install Linux system dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev libxdo-dev
-
-      - name: Build Python Sidecar Binary
+      - name: Build and smoke test native sidecar
         env:
           TARGET: ${{ matrix.target }}
         run: |
           python scripts/build_sidecar.py
-
-      - name: Verify Sidecar Binary Exists (Windows)
-        if: runner.os == 'Windows'
+          python scripts/release_tools.py smoke-sidecar
+      - name: Install frontend and Tauri CLI
         run: |
-          if (-not (Test-Path "src-tauri/binaries/tft-backend-${{ matrix.target }}.exe")) {
-            throw "Sidecar binary not found!"
-          }
-
-      - name: Verify Sidecar Binary Exists (Unix)
-        if: runner.os != 'Windows'
-        run: |
-          test -f "src-tauri/binaries/tft-backend-${{ matrix.target }}" || exit 1
-          chmod +x "src-tauri/binaries/tft-backend-${{ matrix.target }}"
-
-      - name: Install Root Dependencies
-        run: npm ci
-
-      - name: Install Frontend Dependencies
-        working-directory: "Web Overlay"
-        run: npm ci
-
-      - name: Build Frontend
-        working-directory: "Web Overlay"
-        run: npm run build
-
-      - name: Configure Updater Signing
-        id: updater_config
-        shell: bash
-        env:
-          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-        run: |
-          if [ -z "$KEY" ]; then
-            echo "::warning::TAURI_SIGNING_PRIVATE_KEY secret not found in repository. Disabling updater artifacts to prevent build failure."
-            python - <<'EOF'
-import json
-p = 'src-tauri/tauri.conf.json'
-with open(p, 'r', encoding='utf-8') as f:
-    d = json.load(f)
-d['bundle']['createUpdaterArtifacts'] = False
-with open(p, 'w', encoding='utf-8') as f:
-    json.dump(d, f, indent=2)
-EOF
-            echo "signing_enabled=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "TAURI_SIGNING_PRIVATE_KEY detected. Updater signing will proceed."
-            echo "signing_enabled=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Build Tauri Desktop Application & Draft Release
+          npm ci
+          npm --prefix "Web Overlay" ci
+      - name: Build Tauri and upload installers to the draft
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v__VERSION__' }}
-          releaseName: ${{ startsWith(github.ref, 'refs/tags/') && format('TFT Post-Match Studio {0}', github.ref_name) || 'TFT Post-Match Studio v__VERSION__' }}
-          releaseBody: "See the assets below to download and install for Windows, macOS, or Linux."
+          releaseId: ${{ needs.draft.outputs.id }}
+          tagName: ${{ needs.prepare.outputs.tag }}
           releaseDraft: true
-          prerelease: false
-          includeUpdaterJson: ${{ steps.updater_config.outputs.signing_enabled == 'true' }}
-          args: ${{ matrix.args }}
+          prerelease: ${{ needs.prepare.outputs.prerelease }}
+          # A single final job creates the complete manifest after all builds.
+          includeUpdaterJson: false
+          args: --target ${{ matrix.target }}
 
-  publish-release:
-    name: Publish Release
-    needs: build-and-publish
+  publish:
+    name: Verify signatures, generate updater manifest and publish
+    needs: [prepare, draft, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+      RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
+      RELEASE_ID: ${{ needs.draft.outputs.id }}
+      RELEASE_PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Determine Release Tag
-        id: release_tag
-        shell: bash
-        run: |
-          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
-          else
-            VERSION=$(python -c "import json; print(json.load(open('src-tauri/tauri.conf.json'))['version'])")
-            echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Publish Draft Release
-        uses: softprops/action-gh-release@v2
+      - uses: actions/checkout@v4
         with:
-          tag_name: ${{ steps.release_tag.outputs.tag }}
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install signature verifier
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y minisign
+      - name: Download signed updater bundles from the draft
+        run: |
+          gh release download "$RELEASE_TAG" --dir release-assets --pattern '*.sig' --pattern '*.exe' --pattern '*.msi' --pattern '*.AppImage' --pattern '*.app.tar.gz'
+      - name: Verify public key and build a complete latest.json
+        run: python scripts/release_tools.py manifest --assets release-assets
+      - name: Upload verified manifest
+        run: gh release upload "$RELEASE_TAG" release-assets/latest.json --clobber
+      - name: Publish only after every gate succeeds
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tools = require('./scripts/release_github.cjs');
+            await tools.publishDraft({github, context, core});
