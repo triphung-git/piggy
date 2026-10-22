@@ -197,3 +197,14 @@ Diagnostics local nằm ở `scratch/smoke-logs-local/` và `scratch/smoke-logs-
 3. Kiểm tra đủ ba hosted runners, artifacts/chữ ký/manifest và thử cập nhật từ client cũ trước khi publish qua gate hiện có.
 
 **Trạng thái sau sửa mã: các kiểm tra local nêu trên đã đạt; release vẫn chờ xác nhận secrets và workflow đa nền tảng.**
+
+## 8. Xử lý signing secrets sau Release v1.0.4
+
+CI của commit `7bd5c67` đã thành công trên GitHub; Release `v1.0.4` dừng tại signing probe trước build. Hai repository secrets tồn tại, nhưng người dùng xác nhận không nhớ password của key gốc. File `C:\Users\Admin\.tauri\piggy.key` có cấu trúc private key hợp lệ, public key đi kèm khớp cấu hình cũ, và không ký được với password rỗng.
+
+Người dùng xác nhận chưa phát hành bản cài cho ai và yêu cầu tạo key mới. Đã tạo keypair mới cho `v1.0.5`, giữ nguyên key cũ, ký file thử và verify thành công bằng Minisign thật. Public key mới được đưa vào source; các manifests/lockfiles đồng bộ version `1.0.5`.
+
+- Backup private key mới: `C:\Users\Admin\.tauri\piggy-v1.0.5.key`, nằm ngoài repository.
+- Key mới dùng password rỗng; repository cần thay `TAURI_SIGNING_PRIVATE_KEY` bằng key mới và bỏ secret password cũ.
+- Fingerprint SHA256 public key: `ce82b798bb9906e34760ad97a3bc4501eb75780a8d542a92e23f0d3b859f03d3`.
+- Không tái sử dụng/di chuyển tag `v1.0.4`; chạy Release với tag `v1.0.5` sau khi cập nhật secrets.

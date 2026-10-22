@@ -471,15 +471,15 @@ Tauri v2 automatically verifies cryptographic signatures before applying any in-
 #### Generating Signing Keys
 Run the Tauri CLI signer tool to generate a new key pair:
 ```bash
-npx tauri signer generate -w ~/.tauri/piggy.key
+npx tauri signer generate -w ~/.tauri/piggy-v1.0.5.key
 ```
 This generates:
-1. **Private Key**: Saved to `~/.tauri/piggy.key`.
+1. **Private Key**: Saved to `~/.tauri/piggy-v1.0.5.key`.
 2. **Public Key**: Displayed in console output. Copy this public key into `src-tauri/tauri.conf.json` under `plugins.updater.pubkey`.
 
 #### Configuring GitHub Repository Secrets
 To enable automated cross-platform builds and signed releases via GitHub Actions, add these repository secrets:
-- `TAURI_SIGNING_PRIVATE_KEY`: The full contents of your `~/.tauri/piggy.key`.
+- `TAURI_SIGNING_PRIVATE_KEY`: The full contents of your `~/.tauri/piggy-v1.0.5.key`.
 - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: The password chosen when creating the key (or empty if unencrypted).
 
 Store these as repository secrets (or organization secrets available to this repository). The build jobs do not use the `release-production` environment; secrets stored only there are unavailable for signing. Preserve the private key contents exactly, without extra quotes or another base64 encoding layer, and use the matching password. Keep the existing keypair when correcting secrets so installed clients can continue verifying updates.

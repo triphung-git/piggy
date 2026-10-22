@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tft-studio"
-version = "1.0.4"
+version = "1.0.5"
 description = "TFT Post-Match Studio - Esports overlay and match analytics for Teamfight Tactics"
 readme = "README.md"
 requires-python = ">=3.11"

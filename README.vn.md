@@ -469,15 +469,15 @@ Tauri v2 tự động xác thực chữ ký mật mã trước khi cho phép t�
 #### Tạo Cặp Khóa Ký Số
 Sử dụng công cụ Tauri CLI Signer:
 ```bash
-npx tauri signer generate -w ~/.tauri/piggy.key
+npx tauri signer generate -w ~/.tauri/piggy-v1.0.5.key
 ```
 Lệnh này sẽ tạo ra:
-1. **Khóa bí mật (Private Key)**: Lưu tại `~/.tauri/piggy.key`.
+1. **Khóa bí mật (Private Key)**: Lưu tại `~/.tauri/piggy-v1.0.5.key`.
 2. **Khóa công khai (Public Key)**: In ra trên màn hình terminal. Sao chép chuỗi khóa công khai này dán vào trường `plugins.updater.pubkey` trong file `src-tauri/tauri.conf.json`.
 
 #### Thiết Lập GitHub Secrets
 Để GitHub Actions tự động biên dịch, ký số và phát hành đa nền tảng, thêm 2 Secret sau vào repository GitHub (Settings > Secrets and variables > Actions):
-- `TAURI_SIGNING_PRIVATE_KEY`: Toàn bộ nội dung file `~/.tauri/piggy.key`.
+- `TAURI_SIGNING_PRIVATE_KEY`: Toàn bộ nội dung file `~/.tauri/piggy-v1.0.5.key`.
 - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: Mật khẩu bạn đã nhập khi tạo khóa (hoặc để trống nếu không đặt mật khẩu).
 
 Lưu hai giá trị ở repository secrets hoặc organization secrets được cấp cho repository này. Các job build không dùng environment `release-production`; secrets chỉ đặt tại environment đó sẽ không có ở bước ký. Giữ nguyên nội dung private key, không thêm dấu nháy hoặc encode base64 thêm lần nữa, và dùng đúng password tương ứng. Ưu tiên giữ keypair hiện có để các client đã cài vẫn xác minh được bản cập nhật.

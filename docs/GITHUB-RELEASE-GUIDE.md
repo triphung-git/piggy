@@ -1,4 +1,12 @@
 
+## Cập nhật signing cho v1.0.5
+
+Người dùng xác nhận chưa phát hành bản cài và không còn nhớ password updater key cũ. Vì vậy phiên bản `1.0.5` sử dụng keypair mới; public key trong `src-tauri/tauri.conf.json` phải đi cùng private key tại `C:\Users\Admin\.tauri\piggy-v1.0.5.key`. Giữ file này để sao lưu, không commit private key.
+
+`TAURI_SIGNING_PRIVATE_KEY` ở repository secrets được thay bằng nội dung file mới. Key mới dùng password rỗng: xóa secret `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` cũ để workflow nhận chuỗi rỗng. Ký/verify local phải thành công trước khi cập nhật GitHub. Không di chuyển tag `v1.0.4`; phát hành bằng tag mới `v1.0.5` với các version đã đồng bộ.
+
+Các ví dụ version `1.0.2` bên dưới là hướng dẫn lịch sử; khi thực hiện release mới phải dùng version/tag mới nhất quán với manifests hiện tại.
+
 ## 1. Tạo nhánh riêng từ checkout đang có thay đổi
 
 Chạy trong thư mục gốc dự án bằng PowerShell:
