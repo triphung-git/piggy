@@ -1,15 +1,3 @@
-# Đưa thay đổi lên GitHub và phát hành
-
-## Trạng thái đã kiểm tra ngày 22/10/2026
-
-- Checkout hiện tại: `main`, commit `6381ec0d4b5c720eeb71e269c4832736034eb2cc`.
-- `main` local và `origin/main` trên GitHub cùng commit tại thời điểm kiểm tra.
-- Remote: `https://github.com/triphung-git/piggy`.
-- GitHub đã có các tag `v1.0.0`, `v1.0.1` và `v1.0.2` (trỏ commit `6381ec0`).
-- Phiên bản phát hành tiếp theo: **`1.0.3`** (tag `v1.0.3`), hoàn toàn trống trên cả remote lẫn local.
-- Manifests trong checkout hiện đang là `1.0.2` và sẽ được đồng bộ lên `1.0.3` theo Gate G6 sau khi hoàn tất kiểm thử và đóng gói.
-
-Không thể đảm bảo không phát sinh conflict khi có người khác sửa cùng dòng. Quy trình dưới đây giúp phát hiện conflict trên nhánh làm việc trước khi merge vào `main`.
 
 ## 1. Tạo nhánh riêng từ checkout đang có thay đổi
 
