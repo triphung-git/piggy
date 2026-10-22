@@ -12,7 +12,7 @@ function fixture(overrides = {}) {
     updateRelease: async args=>{writes.push(args);}, listReleaseAssets: ()=>{},
   };
   return {writes, github:{rest:{git:{getRef:async()=>({data:{object:{type:'commit',sha:'abc123'}}})}, repos:repositories},
-    paginate:async()=>[{name:'latest.json',size:100}]},
+    paginate:async()=>[{name:'latest.json',size:100},{name:'SHA256SUMS',size:200}]},
     context:{repo:{owner:'owner',repo:'repo'}}, core:{setOutput:()=>{}}};
 }
 
@@ -28,8 +28,13 @@ test('a moved tag cannot be published', async()=>{
   assert.equal(f.writes.length,0);
 });
 test('missing manifest keeps the release a draft', async()=>{
-  const f=fixture(); f.github.paginate=async()=>[];
+  const f=fixture(); f.github.paginate=async()=>[{name:'SHA256SUMS',size:200}];
   await assert.rejects(publishDraft(f),/manifest is missing/);
+  assert.equal(f.writes.length,0);
+});
+test('missing SHA256SUMS keeps the release a draft', async()=>{
+  const f=fixture(); f.github.paginate=async()=>[{name:'latest.json',size:100}];
+  await assert.rejects(publishDraft(f),/checksums file is missing/);
   assert.equal(f.writes.length,0);
 });
 test('draft for another commit is rejected', async()=>{

@@ -1,6 +1,6 @@
 {
   "name": "tft-post-match-studio",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "private": true,
   "description": "TFT Post-Match Studio - Esports overlay and match tracking tool for Teamfight Tactics",
   "scripts": {

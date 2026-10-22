@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import json
 import os
 import platform
@@ -143,13 +144,31 @@ def make_manifest(assets: Path, tag: str, repository: str, config: dict,
             "pub_date": datetime.now(UTC).isoformat().replace("+00:00", "Z"), "platforms": platforms}
 
 
-def smoke_sidecar() -> None:
+def generate_checksums(assets: Path) -> Path:
+    """Generate SHA256SUMS file for all files in the assets directory."""
+    assets = Path(assets)
+    lines = []
+    for item in sorted(assets.iterdir()):
+        if item.is_file() and item.name != "SHA256SUMS":
+            digest = hashlib.sha256(item.read_bytes()).hexdigest()
+            lines.append(f"{digest}  {item.name}\n")
+    checksums_file = assets / "SHA256SUMS"
+    checksums_file.write_text("".join(lines), encoding="utf-8")
+    return checksums_file
+
+
+def smoke_sidecar(timeout: float = 30.0, log_dir: Path | None = None, resource_dir: Path | None = None) -> None:
     target = os.environ.get("TARGET", "")
     machine = {"AMD64": "x86_64", "arm64": "aarch64"}.get(platform.machine(), platform.machine())
     if not target or target.split("-", 1)[0] != machine:
         raise ValueError("Sidecar target architecture must match the Python runner; PyInstaller cannot cross-compile")
     binary = ROOT / "src-tauri" / "binaries" / f"tft-backend-{target}{'.exe' if sys.platform == 'win32' else ''}"
-    subprocess.run([sys.executable, str(ROOT / "scripts" / "smoke_sidecar.py"), "--binary", str(binary)], check=True)
+    cmd = [sys.executable, str(ROOT / "scripts" / "smoke_sidecar.py"), "--binary", str(binary), "--timeout", str(timeout)]
+    if log_dir:
+        cmd.extend(["--log-dir", str(log_dir)])
+    if resource_dir:
+        cmd.extend(["--resource-dir", str(resource_dir)])
+    subprocess.run(cmd, check=True)
 
 
 def main() -> None:
@@ -158,6 +177,9 @@ def main() -> None:
     parser.add_argument("--tag", default=os.environ.get("RELEASE_TAG", ""))
     parser.add_argument("--repository", default=os.environ.get("GITHUB_REPOSITORY", ""))
     parser.add_argument("--assets", type=Path, default=Path("release-assets"))
+    parser.add_argument("--timeout", type=float, default=30.0, help="Startup timeout in seconds")
+    parser.add_argument("--log-dir", type=Path, default=None, help="Directory for diagnostic logs")
+    parser.add_argument("--resource-dir", type=Path, default=None, help="Explicit resource directory")
     args = parser.parse_args()
     try:
         if args.command == "preflight":
@@ -173,9 +195,10 @@ def main() -> None:
             config = validate_versions(args.tag, args.repository, lambda name: (ROOT / name).read_text(encoding="utf-8"))
             manifest = make_manifest(args.assets, args.tag, args.repository, config)
             (args.assets / "latest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-            print("Verified all signatures and generated complete latest.json")
+            checksums_file = generate_checksums(args.assets)
+            print(f"Verified all signatures, generated latest.json and {checksums_file.name}")
         else:
-            smoke_sidecar()
+            smoke_sidecar(timeout=args.timeout, log_dir=args.log_dir, resource_dir=args.resource_dir)
     except (ValueError, KeyError, OSError, subprocess.SubprocessError) as exc:
         parser.exit(1, f"Release blocked: {exc}\n")
 

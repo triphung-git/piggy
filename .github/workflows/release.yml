@@ -133,11 +133,21 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: |
           python scripts/build_sidecar.py
-          python scripts/release_tools.py smoke-sidecar
+          python scripts/release_tools.py smoke-sidecar --timeout 45 --log-dir scratch/smoke-logs
+      - name: Upload smoke test failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-diagnostics-${{ matrix.platform }}
+          path: scratch/smoke-logs
+          retention-days: 7
       - name: Install frontend and Tauri CLI
         run: |
+          node --version
+          npm --version
           npm ci
           npm --prefix "Web Overlay" ci
+          npm exec tauri -- --version
       - name: Build Tauri and upload installers to the draft
         uses: tauri-apps/tauri-action@v0
         env:
@@ -153,8 +163,8 @@ jobs:
           includeUpdaterJson: false
           args: --target ${{ matrix.target }}
 
-  publish:
-    name: Verify signatures, generate updater manifest and publish
+  verify:
+    name: Verify signatures and build updater manifest
     needs: [prepare, draft, build]
     runs-on: ubuntu-latest
     permissions:
@@ -181,11 +191,39 @@ jobs:
       - name: Download signed updater bundles from the draft
         run: |
           gh release download "$RELEASE_TAG" --dir release-assets --pattern '*.sig' --pattern '*.exe' --pattern '*.msi' --pattern '*.AppImage' --pattern '*.app.tar.gz'
-      - name: Verify public key and build a complete latest.json
+      - name: Verify public key, build latest.json and SHA256SUMS
         run: python scripts/release_tools.py manifest --assets release-assets
-      - name: Upload verified manifest
-        run: gh release upload "$RELEASE_TAG" release-assets/latest.json --clobber
-      - name: Publish only after every gate succeeds
+      - name: Upload verified manifest and checksums to draft
+        run: gh release upload "$RELEASE_TAG" release-assets/latest.json release-assets/SHA256SUMS --clobber
+      - name: Upload release inventory artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-manifest-and-checksums
+          path: |
+            release-assets/latest.json
+            release-assets/SHA256SUMS
+          retention-days: 14
+
+  publish:
+    name: Gated release publication
+    needs: [prepare, draft, verify]
+    runs-on: ubuntu-latest
+    environment: release-production
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+      RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
+      RELEASE_ID: ${{ needs.draft.outputs.id }}
+      RELEASE_PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+      - name: Publish only after review and every gate succeeds
         uses: actions/github-script@v7
         with:
           script: |

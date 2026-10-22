@@ -113,7 +113,23 @@ def main() -> None:
             await task
         asyncio.run(serve())
     except Exception as exc:
-        logger.critical("Sidecar encountered fatal error: %s", exc)
+        is_port_conflict = isinstance(exc, OSError) and (
+            getattr(exc, "errno", None) in (48, 98, 10048)
+            or "10048" in str(exc)
+            or "address already in use" in str(exc).lower()
+        )
+        if is_port_conflict:
+            msg = (
+                f"Cổng {port} đã bị chiếm dụng bởi một ứng dụng khác. "
+                "Hãy đóng ứng dụng đang dùng cổng này, hoặc đổi 'server_port' trong overlay_config.json, "
+                f"hoặc đặt biến môi trường TFT_BACKEND_PORT. "
+                "Sidecar sẽ KHÔNG tự động bind cổng ngẫu nhiên để đảm bảo URL kết nối OBS không bị sai lệch."
+            )
+            logger.critical(msg)
+            sys.stderr.write(f"\n[FATAL] {msg}\n")
+        else:
+            logger.critical("Sidecar encountered fatal error: %s", exc)
+            sys.stderr.write(f"\n[FATAL] Sidecar encountered fatal error: {exc}\n")
         sys.exit(1)
 
 

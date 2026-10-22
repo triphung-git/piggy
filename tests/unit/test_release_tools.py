@@ -134,3 +134,31 @@ def test_tauri_signature_is_decoded_before_reference_verifier(tmp_path, monkeypa
         assert Path(command[command.index("-p") + 1]).read_bytes().startswith(b"untrusted comment:")
     monkeypatch.setattr(release_tools.subprocess, "run", verify)
     release_tools.verify_signature(binary, signature, config["plugins"]["updater"]["pubkey"])
+
+
+def test_generate_checksums(bundles):
+    checksums_file = release_tools.generate_checksums(bundles)
+    assert checksums_file.is_file()
+    content = checksums_file.read_text(encoding="utf-8")
+    assert "TFT Studio-setup.exe" in content
+    assert "TFT Studio.app.tar.gz" in content
+    assert "TFT Studio.AppImage" in content
+    # SHA256SUMS itself should not be listed inside SHA256SUMS
+    assert "SHA256SUMS" not in content
+
+
+def test_smoke_sidecar_forwards_options(tmp_path, monkeypatch):
+    monkeypatch.setenv("TARGET", "x86_64-pc-windows-msvc" if release_tools.platform.system() == "Windows" else "x86_64-unknown-linux-gnu")
+    monkeypatch.setattr(release_tools.platform, "machine", lambda: "x86_64")
+
+    called_cmd = []
+    def fake_run(cmd, **kwargs):
+        called_cmd.extend(cmd)
+        return Mock(returncode=0)
+
+    monkeypatch.setattr(release_tools.subprocess, "run", fake_run)
+    release_tools.smoke_sidecar(timeout=45.0, log_dir=tmp_path / "logs")
+
+    assert "--timeout" in called_cmd
+    assert "45.0" in called_cmd
+    assert "--log-dir" in called_cmd

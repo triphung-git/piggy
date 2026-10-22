@@ -8,6 +8,7 @@ theo đúng định dạng tên target triple của Rust / Tauri:
 
 import os
 import platform
+import struct
 import subprocess
 import sys
 from pathlib import Path
@@ -23,6 +24,93 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 
 BINARIES_DIR = ROOT_DIR / "src-tauri" / "binaries"
 ICONS_DIR = ROOT_DIR / "src-tauri" / "icons"
+
+
+def verify_binary_arch(binary_path: Path, target_triple: str) -> None:
+    """Xác minh định dạng nhị phân (PE/ELF/Mach-O) và kiến trúc CPU khớp với target triple."""
+    binary_path = Path(binary_path)
+    if not binary_path.is_file():
+        raise FileNotFoundError(f"Binary file not found: {binary_path}")
+    if binary_path.stat().st_size == 0:
+        raise ValueError(f"Binary file is empty: {binary_path}")
+
+    parts = target_triple.split("-")
+    expected_arch = parts[0]  # x86_64 or aarch64
+    if "windows" in target_triple:
+        expected_os = "windows"
+    elif "linux" in target_triple:
+        expected_os = "linux"
+    elif "darwin" in target_triple or "apple" in target_triple:
+        expected_os = "darwin"
+    else:
+        raise ValueError(f"Unsupported target triple: {target_triple}")
+
+    with binary_path.open("rb") as f:
+        data = f.read(512)
+
+    if len(data) < 4:
+        raise ValueError(f"Binary header too short: {binary_path}")
+
+    # Check Windows PE
+    if data[:2] == b"MZ":
+        if expected_os != "windows":
+            raise ValueError(f"Format mismatch: binary is Windows PE, expected {expected_os} for {target_triple}")
+        if len(data) < 0x40:
+            raise ValueError("Corrupt PE header: file smaller than DOS header")
+        pe_offset = struct.unpack_from("<I", data, 0x3C)[0]
+        with binary_path.open("rb") as f:
+            f.seek(pe_offset)
+            pe_header = f.read(24)
+        if len(pe_header) < 24 or pe_header[:4] != b"PE\x00\x00":
+            raise ValueError("Invalid PE header: missing PE signature")
+        machine = struct.unpack_from("<H", pe_header, 4)[0]
+        pe_arch_map = {
+            0x8664: "x86_64",
+            0xAA64: "aarch64",
+            0x014C: "i386",
+        }
+        actual_arch = pe_arch_map.get(machine, f"unknown_0x{machine:04x}")
+        if actual_arch != expected_arch:
+            raise ValueError(f"Binary architecture mismatch for {target_triple}: expected {expected_arch}, found {actual_arch}")
+        return
+
+    # Check Linux ELF
+    if data[:4] == b"\x7fELF":
+        if expected_os != "linux":
+            raise ValueError(f"Format mismatch: binary is Linux ELF, expected {expected_os} for {target_triple}")
+        if len(data) < 20:
+            raise ValueError("Corrupt ELF header: file smaller than 20 bytes")
+        endian = "<" if data[5] == 1 else ">"
+        machine = struct.unpack_from(f"{endian}H", data, 18)[0]
+        elf_arch_map = {
+            0x003E: "x86_64",
+            0x00B7: "aarch64",
+            0x0003: "i386",
+        }
+        actual_arch = elf_arch_map.get(machine, f"unknown_0x{machine:04x}")
+        if actual_arch != expected_arch:
+            raise ValueError(f"Binary architecture mismatch for {target_triple}: expected {expected_arch}, found {actual_arch}")
+        return
+
+    # Check macOS Mach-O
+    magic = struct.unpack_from("<I", data, 0)[0]
+    if magic in (0xFEEDFACF, 0xFEEDFACE, 0xCFFAEDFE, 0xCEFAEDFE):
+        if expected_os != "darwin":
+            raise ValueError(f"Format mismatch: binary is macOS Mach-O, expected {expected_os} for {target_triple}")
+        endian = "<" if magic in (0xFEEDFACF, 0xFEEDFACE) else ">"
+        cputype = struct.unpack_from(f"{endian}I", data, 4)[0]
+        macho_arch_map = {
+            0x01000007: "x86_64",
+            0x0100000C: "aarch64",
+            0x00000007: "i386",
+        }
+        actual_arch = macho_arch_map.get(cputype, f"unknown_0x{cputype:08x}")
+        if actual_arch != expected_arch:
+            raise ValueError(f"Binary architecture mismatch for {target_triple}: expected {expected_arch}, found {actual_arch}")
+        return
+
+    raise ValueError(f"Format mismatch: unrecognized binary format for {binary_path.name}")
+
 
 
 def get_rust_target_triple() -> str:
@@ -161,8 +249,10 @@ def build_sidecar() -> None:
     if platform.system() != "Windows":
         output_binary.chmod(0o755)
 
+    verify_binary_arch(output_binary, target_triple)
+
     size_mb = output_binary.stat().st_size / (1024 * 1024)
-    print(f"[OK] Đã tạo sidecar thành công: {output_binary} ({size_mb:.2f} MB)")
+    print(f"[OK] Đã tạo sidecar thành công và xác minh cấu trúc CPU: {output_binary} ({size_mb:.2f} MB)")
 
 
 if __name__ == "__main__":

@@ -1,11 +1,13 @@
 # Đưa thay đổi lên GitHub và phát hành
 
-## Trạng thái đã kiểm tra ngày 17–18/10/2026
+## Trạng thái đã kiểm tra ngày 22/10/2026
 
-- Checkout hiện tại: `main`, có nhiều thay đổi chưa commit từ đợt sửa QA và workflow.
-- `main` local và `origin/main` trên GitHub cùng commit `cb97f43ef821915a0f642f5202ad6e2e9d1ebb5e` tại thời điểm đọc remote bằng `git ls-remote`.
+- Checkout hiện tại: `main`, commit `6381ec0d4b5c720eeb71e269c4832736034eb2cc`.
+- `main` local và `origin/main` trên GitHub cùng commit tại thời điểm kiểm tra.
 - Remote: `https://github.com/triphung-git/piggy`.
-- GitHub đã có tag `v1.0.0` và `v1.0.1`. Manifest trong checkout hiện vẫn là `1.0.0`; nếu phát hành bản tiếp theo, có thể dùng `1.0.2` sau khi đồng bộ các manifest và xác nhận chưa có người khác dùng version đó.
+- GitHub đã có các tag `v1.0.0`, `v1.0.1` và `v1.0.2` (trỏ commit `6381ec0`).
+- Phiên bản phát hành tiếp theo: **`1.0.3`** (tag `v1.0.3`), hoàn toàn trống trên cả remote lẫn local.
+- Manifests trong checkout hiện đang là `1.0.2` và sẽ được đồng bộ lên `1.0.3` theo Gate G6 sau khi hoàn tất kiểm thử và đóng gói.
 
 Không thể đảm bảo không phát sinh conflict khi có người khác sửa cùng dòng. Quy trình dưới đây giúp phát hiện conflict trên nhánh làm việc trước khi merge vào `main`.
 

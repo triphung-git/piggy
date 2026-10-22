@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import SourceTransformPanel from './components/SourceTransformPanel';
 import { UpdateModal } from './components/UpdateModal';
-import { checkForAppUpdate, type UpdateInfo } from './lib/updater';
+import { checkForAppUpdateDetailed, type UpdateInfo } from './lib/updater';
 import { Sparkles, ArrowUpCircle } from 'lucide-react';
 
 export default function App() {
@@ -12,10 +12,12 @@ export default function App() {
     // Tự động kiểm tra bản cập nhật mới khi khởi chạy Desktop app
     const checkUpdates = async () => {
       try {
-        const info = await checkForAppUpdate();
-        if (info) {
-          setUpdateInfo(info);
+        const result = await checkForAppUpdateDetailed();
+        if (result.status === 'update_available' && result.update) {
+          setUpdateInfo(result.update);
           setShowUpdateModal(true);
+        } else if (result.status === 'error') {
+          console.warn('[App] Update check failed (network or signature error):', result.error);
         }
       } catch (err) {
         console.warn('[App] Update check skipped:', err);
@@ -24,6 +26,7 @@ export default function App() {
 
     checkUpdates();
   }, []);
+
 
   return (
     <div className="relative size-full min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center p-4 overflow-hidden select-none">

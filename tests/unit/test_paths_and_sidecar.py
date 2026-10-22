@@ -86,6 +86,32 @@ def test_resolve_resource_and_config_up_directory_fallback(tmp_path, monkeypatch
     assert "UP_TITLE" in config_file.read_text(encoding="utf-8")
 
 
+def test_isolated_mode_does_not_fallback_to_project_root(tmp_path, monkeypatch):
+    """Kiem tra che do dong goi (frozen / isolated) khong am tham lay tai nguyen tu repo root."""
+    from tft_studio.core.paths import _find_project_root
+
+    empty_resources = tmp_path / "isolated_res"
+    empty_resources.mkdir()
+    custom_appdata = tmp_path / "isolated_appdata"
+
+    monkeypatch.setenv("TFT_APPDATA_DIR", str(custom_appdata))
+    monkeypatch.setenv("TFT_RESOURCE_DIR", str(empty_resources))
+    monkeypatch.setenv("TFT_ISOLATED_RESOURCES", "1")
+
+    # In isolated mode, resolving a missing resource should NOT resolve to the project root
+    resolved = resolve_resource("templates/overlay.html")
+    repo_root = _find_project_root()
+    assert resolved != repo_root / "templates" / "overlay.html"
+
+    # In isolated mode, ensure_user_config_initialized should NOT copy from repo root
+    env_file, config_file = ensure_user_config_initialized()
+    assert env_file.exists()
+    assert config_file.exists()
+    # It generates standard default content instead of copying developer's local .env
+    assert "RIOT_API_KEY=\n" in env_file.read_text(encoding="utf-8")
+
+
+
 def test_hub_cors_and_token_security(monkeypatch):
     """Kiem tra CORS tauri origin va token security qua STUDIO_SESSION_TOKEN."""
     from fastapi.testclient import TestClient

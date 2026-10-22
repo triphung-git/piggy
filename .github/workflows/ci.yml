@@ -56,7 +56,15 @@ jobs:
         run: pytest -v
 
       - name: Smoke test real sidecar
-        run: python scripts/smoke_sidecar.py
+        run: python scripts/smoke_sidecar.py --timeout 45 --log-dir scratch/smoke-logs
+
+      - name: Upload smoke failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-diagnostics-python-test
+          path: scratch/smoke-logs
+          retention-days: 7
 
   frontend-check:
     name: Frontend TypeScript & Build Check
@@ -113,7 +121,15 @@ jobs:
           test -f src-tauri/binaries/tft-backend-x86_64-unknown-linux-gnu
 
       - name: Smoke test packaged sidecar
-        run: python scripts/smoke_sidecar.py --binary src-tauri/binaries/tft-backend-x86_64-unknown-linux-gnu
+        run: python scripts/smoke_sidecar.py --binary src-tauri/binaries/tft-backend-x86_64-unknown-linux-gnu --timeout 45 --log-dir scratch/smoke-logs
+
+      - name: Upload packaged smoke failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-diagnostics-sidecar-dry-run
+          path: scratch/smoke-logs
+          retention-days: 7
 
   tauri-check:
     name: Windows Tauri compilation
@@ -135,6 +151,8 @@ jobs:
           workspaces: src-tauri -> target
       - name: Install dependencies and build assets
         run: |
+          node --version
+          npm --version
           python -m pip install -r requirements.txt
           npm --prefix "Web Overlay" ci
           npm --prefix "Web Overlay" run build

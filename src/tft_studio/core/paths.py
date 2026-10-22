@@ -81,6 +81,11 @@ def get_resource_dir() -> Path:
     return _find_project_root()
 
 
+def is_isolated_mode() -> bool:
+    """Trả về True nếu đang chạy trong môi trường bundle độc lập (PyInstaller/Tauri hoặc test cách ly)."""
+    return getattr(sys, "frozen", False) or os.environ.get("TFT_ISOLATED_RESOURCES") == "1"
+
+
 def ensure_user_config_initialized() -> tuple[Path, Path]:
     """
     Đảm bảo .env và overlay_config.json đã được khởi tạo trong get_appdata_dir().
@@ -89,6 +94,7 @@ def ensure_user_config_initialized() -> tuple[Path, Path]:
     """
     appdata = get_appdata_dir()
     resources = get_resource_dir()
+    isolated = is_isolated_mode()
 
     env_path = appdata / ".env"
     config_path = appdata / "overlay_config.json"
@@ -101,9 +107,12 @@ def ensure_user_config_initialized() -> tuple[Path, Path]:
             resources / "_up_" / "defaults" / ".env",
             resources / "_up_" / ".env.example",
             resources / "_up_" / ".env",
-            _find_project_root() / "defaults" / ".env",
-            _find_project_root() / ".env.example",
         ]
+        if not isolated:
+            candidates.extend([
+                _find_project_root() / "defaults" / ".env",
+                _find_project_root() / ".env.example",
+            ])
         source_found = next((c for c in candidates if c.exists()), None)
         if source_found:
             shutil.copy2(source_found, env_path)
@@ -125,9 +134,12 @@ def ensure_user_config_initialized() -> tuple[Path, Path]:
             resources / "overlay_config.json",
             resources / "_up_" / "defaults" / "overlay_config.json",
             resources / "_up_" / "overlay_config.json",
-            _find_project_root() / "defaults" / "overlay_config.json",
-            _find_project_root() / "overlay_config.json",
         ]
+        if not isolated:
+            candidates.extend([
+                _find_project_root() / "defaults" / "overlay_config.json",
+                _find_project_root() / "overlay_config.json",
+            ])
         source_found = next((c for c in candidates if c.exists()), None)
         if source_found:
             shutil.copy2(source_found, config_path)
@@ -171,12 +183,15 @@ def resolve_resource(relative_path: str | Path) -> Path:
     1. Ưu tiên kiểm tra xem người dùng có file tùy chỉnh ở thư mục get_appdata_dir() không.
     2. Nếu không có, nạp file từ get_resource_dir().
     3. Kiểm tra thư mục _up_ (do Tauri v2 đóng gói tài nguyên từ thư mục cha ..).
-    4. Thử tìm ở thư mục gốc dự án.
+    4. Thử tìm ở thư mục gốc dự án (chỉ khi ở dev mode, không áp dụng cho frozen/isolated bundle).
     """
     rel = Path(relative_path)
     if rel.is_absolute() or ".." in rel.parts:
         raise ValueError("Resource path must be relative")
-    roots = [get_appdata_dir(), get_resource_dir(), get_resource_dir() / "_up_", _find_project_root()]
+    isolated = is_isolated_mode()
+    roots = [get_appdata_dir(), get_resource_dir(), get_resource_dir() / "_up_"]
+    if not isolated:
+        roots.append(_find_project_root())
     for root in roots:
         candidate = (root / rel).resolve()
         if candidate.is_relative_to(root.resolve()) and candidate.exists():

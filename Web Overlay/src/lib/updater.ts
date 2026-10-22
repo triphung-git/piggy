@@ -31,29 +31,48 @@ export interface UpdateInfo {
   rawUpdate: Update;
 }
 
-export async function checkForAppUpdate(): Promise<UpdateInfo | null> {
+export interface CheckUpdateResult {
+  status: 'update_available' | 'up_to_date' | 'error' | 'unsupported';
+  update?: UpdateInfo;
+  error?: string;
+}
+
+export async function checkForAppUpdateDetailed(): Promise<CheckUpdateResult> {
   if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) {
-    return null;
+    return { status: 'unsupported' };
   }
 
   try {
     const update = await check();
     if (!update) {
-      return null;
+      return { status: 'up_to_date' };
     }
 
     return {
-      version: update.version,
-      currentVersion: update.currentVersion,
-      date: update.date,
-      body: update.body,
-      rawUpdate: update,
+      status: 'update_available',
+      update: {
+        version: update.version,
+        currentVersion: update.currentVersion,
+        date: update.date,
+        body: update.body,
+        rawUpdate: update,
+      },
     };
-  } catch (err) {
-    console.warn('[Updater] check() error:', err);
-    return null;
+  } catch (err: any) {
+    const errorStr = err?.message || String(err);
+    console.error('[Updater] check() error:', errorStr);
+    return { status: 'error', error: errorStr };
   }
 }
+
+export async function checkForAppUpdate(): Promise<UpdateInfo | null> {
+  const result = await checkForAppUpdateDetailed();
+  if (result.status === 'update_available' && result.update) {
+    return result.update;
+  }
+  return null;
+}
+
 
 export async function installConfirmedUpdate(
   updateInfo: UpdateInfo,

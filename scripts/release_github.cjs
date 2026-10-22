@@ -42,8 +42,10 @@ async function publishDraft({github, context}) {
   }
   const assets = await github.paginate(github.rest.repos.listReleaseAssets, {...repository, release_id, per_page: 100});
   if (!assets.some(asset => asset.name === 'latest.json' && asset.size > 0)) throw new Error('Verified updater manifest is missing');
+  if (!assets.some(asset => asset.name === 'SHA256SUMS' && asset.size > 0)) throw new Error('Verified SHA256 checksums file is missing');
   await github.rest.repos.updateRelease({...repository, release_id, draft: false, prerelease: prerelease === 'true',
     make_latest: prerelease === 'true' ? 'false' : 'legacy'});
+
 }
 
 module.exports = {assertTag, createDraft, publishDraft};
