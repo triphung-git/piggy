@@ -229,3 +229,11 @@ Fixture được build, không cài vào máy; dùng `-sval` để bỏ bước 
 Kiểm tra bổ sung sau sửa: **36 tests passed** cho release guards, overlay generator và PNG exporter; Ruff, Actionlint, version guard `v1.0.6` đều đạt. Quét lại resource paths được Git theo dõi: không còn tên ngoài CP1252. `git diff` xác nhận không thay đổi `.github/workflows`, `scripts`, `src/tft_studio` hoặc `templates`.
 
 Không đổi MSI sang UTF-8 để né lỗi: [tài liệu WiX 3 về code pages](https://docs.firegiant.com/wix3/overview/codepage/) nêu UTF-7/UTF-8 không được hỗ trợ chính thức do vấn đề giao diện. Loại bỏ bản resource trùng không sử dụng có phạm vi tác động nhỏ hơn và giữ nguyên cấu hình installer hiện tại.
+
+### Kết quả trên GitHub và lỗi verify được phát hiện tiếp theo
+
+Run `39804172913`, tag `v1.0.6`, commit `7b15ccf`: toàn bộ CI và cả ba job **Build & Package Windows/macOS/Linux đều thành công**. Lỗi WiX LGHT0311 đã hết trên runner Windows thật.
+
+Sau đó bước verify báo `Missing bundle for TFT.Post-Match.Studio-1.0.6-1.x86_64.rpm.sig`. Đây là thiếu sót của bộ lọc download đã tồn tại trước bản sửa MSI: tải mọi `*.sig` nhưng chỉ tải `.exe`, `.msi`, `.AppImage` và `.app.tar.gz`, nên thiếu RPM tương ứng khi Tauri tạo chữ ký cho installer này.
+
+Bản sửa bổ sung chỉ thay lệnh download trong workflow Release thành tải đầy đủ artifacts của draft; giữ nguyên bước verify mọi chữ ký và manifest ba nền tảng. Không đổi workflow CI hoặc mã ứng dụng. Test hồi quy xác nhận thiếu RPM vẫn bị chặn và có RPM thì chữ ký bổ sung được kiểm tra. Vì chỉ sửa điều phối workflow, có thể chạy thủ công workflow mới từ `main` với tag `v1.0.6` cũ; không di chuyển tag hoặc sửa source của bản đã đóng gói.

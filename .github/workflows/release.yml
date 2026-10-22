@@ -212,7 +212,9 @@ jobs:
           sudo apt-get install -y minisign
       - name: Download signed updater bundles from the draft
         run: |
-          gh release download "$RELEASE_TAG" --dir release-assets --pattern '*.sig' --pattern '*.exe' --pattern '*.msi' --pattern '*.AppImage' --pattern '*.app.tar.gz'
+          # Optional installers (for example RPM/DEB) may also have signatures.
+          # Every downloaded signature must have its matching bundle to verify.
+          gh release download "$RELEASE_TAG" --dir release-assets
       - name: Verify public key, build latest.json and SHA256SUMS
         run: python scripts/release_tools.py manifest --assets release-assets
       - name: Upload verified manifest and checksums to draft

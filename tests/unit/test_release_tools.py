@@ -122,6 +122,21 @@ def test_bad_signature_blocks_manifest(bundles):
         release_tools.make_manifest(bundles, TAG, REPOSITORY, json.loads(read_manifest("src-tauri/tauri.conf.json")), verifier)
 
 
+def test_optional_rpm_signature_requires_and_verifies_matching_bundle(bundles):
+    rpm = bundles / "TFT.Studio-1.0.6-1.x86_64.rpm"
+    rpm.with_suffix(".rpm.sig").write_text("rpm-signature", encoding="utf-8")
+    config = json.loads(read_manifest("src-tauri/tauri.conf.json"))
+    verifier = Mock()
+    with pytest.raises(ValueError, match=r"Missing bundle.*rpm\.sig"):
+        release_tools.make_manifest(bundles, TAG, REPOSITORY, config, verifier)
+    rpm.write_bytes(b"rpm bundle fixture")
+    verifier.reset_mock()
+    manifest = release_tools.make_manifest(bundles, TAG, REPOSITORY, config, verifier)
+    assert verifier.call_count == 4
+    assert any(call.args[0] == rpm for call in verifier.call_args_list)
+    assert set(manifest["platforms"]) == {"windows-x86_64", "darwin-aarch64", "linux-x86_64"}
+
+
 def test_tauri_signature_is_decoded_before_reference_verifier(tmp_path, monkeypatch):
     config = json.loads(read_manifest("src-tauri/tauri.conf.json"))
     binary = tmp_path / "bundle.exe"
