@@ -208,3 +208,24 @@ Người dùng xác nhận chưa phát hành bản cài cho ai và yêu cầu t�
 - Key mới dùng password rỗng; repository cần thay `TAURI_SIGNING_PRIVATE_KEY` bằng key mới và bỏ secret password cũ.
 - Fingerprint SHA256 public key: `ce82b798bb9906e34760ad97a3bc4501eb75780a8d542a92e23f0d3b859f03d3`.
 - Không tái sử dụng/di chuyển tag `v1.0.4`; chạy Release với tag `v1.0.5` sau khi cập nhật secrets.
+
+## 9. Sửa chính xác lỗi MSI LGHT0311 của v1.0.5
+
+Lỗi xảy ra ở WiX `light.exe` sau khi Rust đã build thành công, không phải lỗi compiler hoặc signing. Bộ cài `en-US` dùng database code page `1252`; resource glob `../assets/**/*` đưa cả `assets/đại chiến chảo vàng.png` vào MSI. Đây là resource path được Git theo dõi duy nhất không biểu diễn được bằng CP1252.
+
+Repo đã có file `assets/dai_chien_chao_vang.png` với nội dung **giống hệt từng byte**, SHA256 `c6e95615b328806ddf3ade9a4580274387fc10765a95a4eed540b525485fb988`. Template `templates/overlay.html` đang dùng tên ASCII này; quét toàn bộ tracked files không thấy tham chiếu tên file tiếng Việt.
+
+**Bản sửa:** bỏ duy nhất ảnh trùng tên tiếng Việt. Giữ nguyên ảnh ASCII và toàn bộ tham chiếu runtime. Không đổi workflow, code page, ngôn ngữ installer, signing key hay logic ứng dụng. Đồng bộ version `1.0.6` để tag mới chứa bản sửa; không di chuyển tag `v1.0.5`.
+
+**Kiểm chứng thực với WiX 3.14.1:** tải đúng `wix314-binaries.zip` trong log, SHA256 `6ac824e1642d6f7277d0ed7ea09411a508f6116ba6fae0aa5f2c7daa2ff43d31`. Compile/link cùng một MSI fixture CP1252 chứa ảnh thật, chỉ thay tên file trong bảng MSI:
+
+| Trường hợp | Kết quả light.exe |
+| --- | --- |
+| Tên `đại chiến chảo vàng.png` | Exit `311`, tái hiện đúng `LGHT0311` |
+| Tên `dai_chien_chao_vang.png` | Exit `0`, tạo MSI thành công |
+
+Fixture được build, không cài vào máy; dùng `-sval` để bỏ bước ICE validation trong kiểm tra riêng lỗi linker/code page, không thay flags của workflow thật. Chứng cứ local nằm trong `scratch/wix-codepage-check/`, không commit.
+
+Kiểm tra bổ sung sau sửa: **36 tests passed** cho release guards, overlay generator và PNG exporter; Ruff, Actionlint, version guard `v1.0.6` đều đạt. Quét lại resource paths được Git theo dõi: không còn tên ngoài CP1252. `git diff` xác nhận không thay đổi `.github/workflows`, `scripts`, `src/tft_studio` hoặc `templates`.
+
+Không đổi MSI sang UTF-8 để né lỗi: [tài liệu WiX 3 về code pages](https://docs.firegiant.com/wix3/overview/codepage/) nêu UTF-7/UTF-8 không được hỗ trợ chính thức do vấn đề giao diện. Loại bỏ bản resource trùng không sử dụng có phạm vi tác động nhỏ hơn và giữ nguyên cấu hình installer hiện tại.

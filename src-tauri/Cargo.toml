@@ -1,6 +1,6 @@
 [package]
 name = "tft-studio"
-version = "1.0.5"
+version = "1.0.6"
 description = "TFT Post-Match Studio Desktop Application"
 authors = ["triphung"]
 edition = "2021"
