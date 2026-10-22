@@ -6,19 +6,22 @@ Usage: python scripts/smoke_sidecar.py [--binary path/to/tft-backend.exe] [--tim
 from __future__ import annotations
 
 import argparse
-import contextlib
 import json
 import os
 import socket
 import subprocess
 import sys
-import tempfile
 import time
 from pathlib import Path
 
 import requests
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
+from tft_studio.core.processes import ProcessTree  # noqa: E402
+from tft_studio.core.tempfiles import temporary_directory  # noqa: E402
+from tft_studio.render import EXPORT_SHUTDOWN_TIMEOUT  # noqa: E402
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -39,30 +42,14 @@ def sanitize_log(content: str, secrets: list[str]) -> str:
     return sanitized
 
 
-def kill_process_tree(process: subprocess.Popen | None) -> None:
-    """Kill process and all child processes created by PyInstaller bootloader."""
-    if process is None or process.poll() is not None:
-        return
-
-    pid = process.pid
-    if sys.platform == "win32":
-        with contextlib.suppress(Exception):
-            subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True, check=False)
-    else:
-        with contextlib.suppress(Exception):
-            process.kill()
-
-    with contextlib.suppress(Exception):
-        process.wait(timeout=5)
-
-
-
 def save_diagnostics(
     log_dir: Path | None,
     process_log: Path | None,
     appdata_dir: Path | None,
     exit_code: int | None,
     secrets: list[str],
+    phase: str = "startup",
+    error: str | None = None,
 ) -> Path | None:
     """Save durable sanitized logs for post-mortem analysis and CI artifacts."""
     if not log_dir:
@@ -85,6 +72,8 @@ def save_diagnostics(
             "exit_code": exit_code,
             "timestamp": time.time(),
             "platform": sys.platform,
+            "phase": phase,
+            "error": sanitize_log(error, secrets) if error else None,
         }
         (log_dir / "diag_metadata.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
         return log_dir
@@ -93,7 +82,7 @@ def save_diagnostics(
         return None
 
 
-def run_smoke(
+def _run_smoke(
     binary: Path | None = None,
     timeout: float = 30.0,
     log_dir: Path | None = None,
@@ -104,7 +93,19 @@ def run_smoke(
     token = "smoke-local-session"
     secrets_to_redact = [token]
 
-    with tempfile.TemporaryDirectory(prefix="tft-smoke-") as folder:
+    phase = "startup"
+    process = None
+
+    def before_cleanup(data: Path) -> None:
+        save_diagnostics(log_dir, data / "process.log", data,
+                         process.poll() if process else None, secrets_to_redact, phase)
+
+    def cleanup_failed(data: Path, error: Exception) -> None:
+        save_diagnostics(log_dir, data / "process.log", data,
+                         process.poll() if process else None, secrets_to_redact, phase, str(error))
+
+    with temporary_directory(prefix="tft-smoke-", on_cleanup=before_cleanup,
+                             on_cleanup_error=cleanup_failed) as folder:
         data = Path(folder)
         (data / "output").mkdir()
         (data / ".env").write_text("RIOT_API_KEY=\nRIOT_ID=\nREGION=VN\n", encoding="utf-8")
@@ -137,6 +138,8 @@ def run_smoke(
         log_file = log_path.open("w", encoding="utf-8")
 
         process = None
+        tree = None
+        failed = False
         session = requests.Session()
         session.trust_env = False
         session.headers["X-Studio-Token"] = token
@@ -148,7 +151,7 @@ def run_smoke(
         t_shutdown = 0.0
 
         try:
-            process = subprocess.Popen(
+            tree = ProcessTree(
                 [*command, "--port", str(port)],
                 cwd=str(res_root),
                 env=env,
@@ -156,6 +159,7 @@ def run_smoke(
                 stderr=log_file,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
+            process = tree.process
             # Close python write handle so child holds it exclusively
             log_file.close()
 
@@ -179,6 +183,7 @@ def run_smoke(
                 raise TimeoutError(f"Sidecar did not become ready within {timeout}s on port {port}")
 
             # Verify authenticated render
+            phase = "render"
             t_render_start = time.monotonic()
             render_res = session.post(base + "/api/render", timeout=15)
             assert render_res.status_code == 200, f"Render failed ({render_res.status_code}): {render_res.text}"
@@ -195,33 +200,40 @@ def run_smoke(
             overlay_res = session.get(base + "/overlay", timeout=5)
             assert overlay_res.status_code == 200 and 'href="/overlay.css"' in overlay_res.text, "Overlay shell missing stylesheet"
 
-            print(
-                f"PASS: real sidecar startup ({t_startup:.2f}s), "
-                f"render ({t_render:.2f}s), overlay shell and bundled assets"
-            )
-
         except Exception:
-            if process and process.poll() is None:
-                kill_process_tree(process)
-            save_diagnostics(log_dir, log_path, data, process.poll() if process else None, secrets_to_redact)
+            failed = True
+            save_diagnostics(log_dir, log_path, data, process.poll() if process else None, secrets_to_redact, phase)
             raise
         finally:
             t_shut_start = time.monotonic()
             try:
-                session.post(base + "/api/shutdown", timeout=2)
-                if process:
-                    process.wait(timeout=10)
-            except (requests.RequestException, subprocess.TimeoutExpired):
-                if process:
-                    kill_process_tree(process)
-            t_shutdown = time.monotonic() - t_shut_start
-            session.close()
-
-            # Ensure log file is definitely closed before exiting temp directory
-            if not log_file.closed:
+                if not failed:
+                    phase = "shutdown"
+                    response = session.post(base + "/api/shutdown", timeout=2)
+                    response.raise_for_status()
+                    exit_code = process.wait(timeout=EXPORT_SHUTDOWN_TIMEOUT + 10)
+                    if exit_code != 0:
+                        raise RuntimeError(f"Sidecar shutdown exited with code {exit_code}")
+            finally:
+                # Job/session ownership survives root exit and covers browser descendants.
+                session.close()
                 log_file.close()
+                if tree:
+                    tree.__exit__(*sys.exc_info())
+                t_shutdown = time.monotonic() - t_shut_start
+
+        phase = "cleanup"
 
         return {"startup": t_startup, "render": t_render, "shutdown": t_shutdown}
+
+
+def run_smoke(binary: Path | None = None, timeout: float = 30.0,
+              log_dir: Path | None = None, resource_dir: Path | None = None) -> dict[str, float]:
+    metrics = _run_smoke(binary=binary, timeout=timeout, log_dir=log_dir, resource_dir=resource_dir)
+    print(f"PASS: real sidecar startup ({metrics['startup']:.2f}s), "
+          f"render ({metrics['render']:.2f}s), overlay shell and bundled assets, "
+          f"shutdown ({metrics['shutdown']:.2f}s) and cleanup")
+    return metrics
 
 
 def main() -> None:

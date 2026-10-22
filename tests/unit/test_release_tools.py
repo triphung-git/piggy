@@ -162,3 +162,41 @@ def test_smoke_sidecar_forwards_options(tmp_path, monkeypatch):
     assert "--timeout" in called_cmd
     assert "45.0" in called_cmd
     assert "--log-dir" in called_cmd
+
+
+def test_signing_probe_checks_release_key_without_secret_arguments(monkeypatch):
+    config = json.loads(read_manifest("src-tauri/tauri.conf.json"))
+    monkeypatch.setenv("TAURI_SIGNING_PRIVATE_KEY", "test-private-secret")
+    monkeypatch.setenv("TAURI_SIGNING_PRIVATE_KEY_PASSWORD", "")
+    monkeypatch.setattr(release_tools, "git", lambda *args: json.dumps(config))
+    verifier = Mock()
+    monkeypatch.setattr(release_tools, "verify_signature", verifier)
+
+    def sign(command, **kwargs):
+        assert "test-private-secret" not in command
+        assert kwargs["env"]["TAURI_SIGNING_PRIVATE_KEY_PASSWORD"] == ""
+        assert kwargs["capture_output"] is True
+        probe = Path(command[-1])
+        probe.with_suffix(".txt.sig").write_text("test-signature", encoding="utf-8")
+
+    monkeypatch.setattr(release_tools.subprocess, "run", sign)
+    release_tools.signing_probe("a" * 40)
+    assert verifier.call_args.args[1:] == ("test-signature", config["plugins"]["updater"]["pubkey"])
+
+
+@pytest.mark.parametrize("failure", ["decode", "mismatch"])
+def test_signing_probe_blocks_bad_secrets_without_exposing_output(monkeypatch, failure):
+    monkeypatch.setenv("TAURI_SIGNING_PRIVATE_KEY", "private-secret")
+    monkeypatch.setattr(release_tools, "git", lambda *args: read_manifest("src-tauri/tauri.conf.json"))
+
+    def sign(command, **kwargs):
+        if failure == "decode":
+            raise subprocess.CalledProcessError(1, command, stderr="private-secret")
+        Path(command[-1]).with_suffix(".txt.sig").write_text("signature", encoding="utf-8")
+
+    monkeypatch.setattr(release_tools.subprocess, "run", sign)
+    monkeypatch.setattr(release_tools, "verify_signature", Mock(side_effect=ValueError("private-secret")))
+    with pytest.raises(ValueError, match="Signing probe") as error:
+        release_tools.signing_probe("a" * 40)
+    assert "private-secret" not in str(error.value)
+    assert error.value.__suppress_context__

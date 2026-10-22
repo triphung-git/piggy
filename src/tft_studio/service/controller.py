@@ -19,6 +19,7 @@ from tft_studio.api.hub import is_server_running, notify_sync, set_bridge_refere
 from tft_studio.core.config import AppConfig, load_overlay_config, save_overlay_config
 from tft_studio.core.paths import get_app_dir, resolve_resource
 from tft_studio.core.storage import RENDER_LOCK
+from tft_studio.render import EXPORT_SHUTDOWN_TIMEOUT
 from tft_studio.render.exporter import export_html_to_png
 from tft_studio.render.generator import (
     generate_overlay_html,
@@ -731,9 +732,13 @@ class StudioController:
             notify_sync({"type": "PNG_EXPORTED", "success": ok})
 
     def close(self) -> None:
-        self._closed = True
-        self._export_requested.set()
+        # Synchronize with render so no new export worker can start after closing.
+        with RENDER_LOCK:
+            self._closed = True
+            self._export_requested.set()
         self._config_watcher.stop()
         self._match_service.stop_auto_polling()
         if self._export_worker:
-            self._export_worker.join(timeout=5)
+            self._export_worker.join(timeout=EXPORT_SHUTDOWN_TIMEOUT)
+            if self._export_worker.is_alive():
+                raise RuntimeError("PNG exporter did not stop before shutdown deadline")

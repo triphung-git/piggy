@@ -44,6 +44,28 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: python scripts/release_tools.py preflight
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install the release commit's locked Tauri CLI
+        env:
+          RELEASE_SHA: ${{ steps.guard.outputs.sha }}
+        run: |
+          git show "${RELEASE_SHA}:package.json" > package.json
+          git show "${RELEASE_SHA}:package-lock.json" > package-lock.json
+          npm ci --ignore-scripts
+          node node_modules/@tauri-apps/cli/tauri.js --version
+      - name: Install signing probe verifier
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y minisign
+      - name: Sign and verify probe before running CI and native builds
+        env:
+          RELEASE_SHA: ${{ steps.guard.outputs.sha }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: python scripts/release_tools.py signing-probe --ref "$RELEASE_SHA"
+
   checks:
     name: CI on the exact release commit
     needs: prepare

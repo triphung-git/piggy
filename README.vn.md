@@ -480,6 +480,15 @@ Lệnh này sẽ tạo ra:
 - `TAURI_SIGNING_PRIVATE_KEY`: Toàn bộ nội dung file `~/.tauri/piggy.key`.
 - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: Mật khẩu bạn đã nhập khi tạo khóa (hoặc để trống nếu không đặt mật khẩu).
 
+Lưu hai giá trị ở repository secrets hoặc organization secrets được cấp cho repository này. Các job build không dùng environment `release-production`; secrets chỉ đặt tại environment đó sẽ không có ở bước ký. Giữ nguyên nội dung private key, không thêm dấu nháy hoặc encode base64 thêm lần nữa, và dùng đúng password tương ứng. Ưu tiên giữ keypair hiện có để các client đã cài vẫn xác minh được bản cập nhật.
+
+Trước CI và build native, Release ký một file thử bằng Tauri CLI trong lockfile, sau đó verify với public key của commit release. Key hỏng, password sai hoặc keypair không khớp sẽ chặn release sớm. Có thể kiểm tra tương tự ở máy local sau khi nạp an toàn hai biến môi trường và cài Minisign:
+
+```bash
+npm ci
+python scripts/release_tools.py signing-probe --ref HEAD
+```
+
 #### Phát Hành Phiên Bản Mới
 Chỉ cần gắn thẻ Git tag theo chuẩn semantic version và đẩy lên GitHub:
 ```bash
@@ -487,9 +496,11 @@ git tag v1.0.1
 git push origin v1.0.1
 ```
 Quy trình tự động hóa `.github/workflows/release.yml` trên GitHub Actions sẽ:
-1. Chạy matrix đồng thời trên Windows x64, macOS Apple Silicon (arm64), macOS Intel (x64) và Linux x64.
-2. Đóng gói sidecar, ký số toàn bộ file cài đặt và tạo manifest `latest.json`.
-3. Tự động xuất bản các tệp cài đặt lên mục Releases của GitHub.
+1. Kiểm tra tag, version và cấu hình ký, sau đó chạy CI trên đúng commit release.
+2. Build và smoke-test sidecar native trên Windows x64, macOS Apple Silicon (arm64) và Linux x64, rồi tải bộ cài đã ký lên draft release.
+3. Verify mọi chữ ký updater, tạo `latest.json` và `SHA256SUMS`, sau đó publish qua gate `release-production`.
+
+CI Windows cũng smoke-test bản sidecar đã đóng gói. Kết quả smoke chỉ thành công sau shutdown và cleanup profile tạm; diagnostics đã lọc thông tin nhạy cảm được tải lên khi thất bại. Khi sửa mã, dùng commit mới với version/tag tương ứng thay vì di chuyển tag release cũ.
 
 ---
 

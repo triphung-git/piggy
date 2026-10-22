@@ -115,6 +115,31 @@ def verify_signature(binary: Path, signature: str, pubkey: str) -> None:
                         "-x", str(signature_file)], check=True, capture_output=True, timeout=120)
 
 
+def signing_probe(ref: str) -> None:
+    """Exercise the release CLI and prove the secret matches the release public key."""
+    config = json.loads(git("show", f"{ref}:src-tauri/tauri.conf.json"))
+    if not os.environ.get("TAURI_SIGNING_PRIVATE_KEY", "").strip():
+        raise ValueError("Repository secret TAURI_SIGNING_PRIVATE_KEY is required")
+    # Invoke the locked CLI directly: no shell, no secret values in arguments/logs.
+    cli = ROOT / "node_modules" / "@tauri-apps" / "cli" / "tauri.js"
+    with tempfile.TemporaryDirectory(prefix="tft-signing-probe-") as directory:
+        probe = Path(directory) / "signing-probe.txt"
+        probe.write_text("TFT Studio release signing preflight\n", encoding="utf-8")
+        try:
+            subprocess.run(["node", str(cli), "signer", "sign", str(probe)],
+                           cwd=ROOT, check=True, capture_output=True, timeout=60,
+                           env={**os.environ, "CI": "true",
+                                "TAURI_SIGNING_PRIVATE_KEY_PASSWORD": os.environ.get("TAURI_SIGNING_PRIVATE_KEY_PASSWORD", "")})
+        except (OSError, subprocess.SubprocessError):
+            raise ValueError("Signing probe failed: check private key format, password and secret scope; CLI output withheld") from None
+        try:
+            signature = probe.with_suffix(".txt.sig").read_text(encoding="utf-8").strip()
+            verify_signature(probe, signature, config["plugins"]["updater"]["pubkey"])
+        except (OSError, ValueError, subprocess.SubprocessError):
+            raise ValueError("Signing probe verification failed: signing key must match the release updater public key") from None
+    print("Signing probe passed: key/password decoded and signature matches release public key")
+
+
 def make_manifest(assets: Path, tag: str, repository: str, config: dict,
                   verify: Callable = verify_signature) -> dict:
     version = version_from_tag(tag)
@@ -173,7 +198,8 @@ def smoke_sidecar(timeout: float = 30.0, log_dir: Path | None = None, resource_d
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["preflight", "check-version", "manifest", "smoke-sidecar"])
+    parser.add_argument("command", choices=["preflight", "signing-probe", "check-version", "manifest", "smoke-sidecar"])
+    parser.add_argument("--ref", default="HEAD", help="Validated release commit for signing probe")
     parser.add_argument("--tag", default=os.environ.get("RELEASE_TAG", ""))
     parser.add_argument("--repository", default=os.environ.get("GITHUB_REPOSITORY", ""))
     parser.add_argument("--assets", type=Path, default=Path("release-assets"))
@@ -188,6 +214,8 @@ def main() -> None:
                 for key, value in outputs.items():
                     output.write(f"{key}={value}\n")
             print(f"Release preflight passed: {outputs['tag']} at {outputs['sha']}")
+        elif args.command == "signing-probe":
+            signing_probe(args.ref)
         elif args.command == "check-version":
             validate_versions(args.tag, args.repository, lambda name: (ROOT / name).read_text(encoding="utf-8"))
             print(f"Version and updater configuration match {args.tag}")

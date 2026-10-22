@@ -12,13 +12,15 @@ import os
 import shutil
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 from PIL import Image
 
 from tft_studio.core.paths import get_appdata_dir, resolve_resource
+from tft_studio.core.processes import ProcessTree
 from tft_studio.core.storage import EXPORT_LOCK, RENDER_LOCK, atomic_write
+from tft_studio.core.tempfiles import temporary_directory
+from tft_studio.render import EXPORT_TIMEOUT
 
 logger = logging.getLogger("export_service")
 
@@ -105,7 +107,7 @@ def export_html_to_png(
 
     output_png.parent.mkdir(parents=True, exist_ok=True)
     try:
-        with EXPORT_LOCK, tempfile.TemporaryDirectory(prefix="tft-export-", dir=output_png.parent) as folder:
+        with EXPORT_LOCK, temporary_directory(prefix="tft-export-", dir=output_png.parent) as folder:
             working = Path(folder)
             snapshot = working / "overlay.html"
             screenshot = working / "capture.png"
@@ -128,9 +130,11 @@ def export_html_to_png(
                 "--allow-file-access-from-files", "--virtual-time-budget=3000",
                 f"--user-data-dir={working / 'profile'}", snapshot.as_uri(),
             ]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30,
-                                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-            if result.returncode != 0 or not screenshot.exists():
+            with ProcessTree(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as browser:
+                logger.info("Export browser started: pid=%s profile=%s", browser.pid, working / "profile")
+                browser.communicate(timeout=EXPORT_TIMEOUT)
+            # The process tree is closed before inspecting or removing its files.
+            if browser.returncode != 0 or not screenshot.exists():
                 logger.error("Browser export did not produce an image")
                 return False
             with Image.open(screenshot) as img:

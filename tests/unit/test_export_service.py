@@ -32,7 +32,7 @@ def test_export_html_to_png_successful_run(tmp_path):
     html_file.write_text("<h1>Test</h1>", encoding="utf-8")
     out_png = tmp_path / "out.png"
 
-    def fake_subprocess_run(cmd, **kwargs):
+    def fake_process_tree(cmd, **kwargs):
         # Gia lap tao ra file anh > 10000 bytes
         from PIL import Image
         destination = next(arg.split("=", 1)[1] for arg in cmd if arg.startswith("--screenshot="))
@@ -40,14 +40,16 @@ def test_export_html_to_png_successful_run(tmp_path):
         mock_res = MagicMock()
         mock_res.stderr = ""
         mock_res.returncode = 0
-        return mock_res
+        owner = MagicMock()
+        owner.__enter__.return_value = mock_res
+        return owner
 
     with (
         patch(
             "tft_studio.render.exporter.find_browser_executable",
             return_value="C:\\fake\\chrome.exe",
         ),
-        patch("tft_studio.render.exporter.subprocess.run", side_effect=fake_subprocess_run),
+        patch("tft_studio.render.exporter.ProcessTree", side_effect=fake_process_tree),
     ):
         ok = export_html_to_png(html_file, out_png)
         assert ok is True

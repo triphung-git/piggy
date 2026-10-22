@@ -52,6 +52,17 @@ jobs:
       - name: Run Ruff Lint Check
         run: ruff check .
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install real signing test tools
+        run: |
+          npm ci --ignore-scripts
+          sudo apt-get update
+          sudo apt-get install -y minisign
+
       - name: Run Pytest Test Suite
         run: pytest -v
 
@@ -157,5 +168,14 @@ jobs:
           npm --prefix "Web Overlay" ci
           npm --prefix "Web Overlay" run build
           python scripts/build_sidecar.py
+      - name: Smoke test packaged Windows sidecar
+        run: python scripts/smoke_sidecar.py --binary src-tauri/binaries/tft-backend-x86_64-pc-windows-msvc.exe --timeout 45 --log-dir scratch/smoke-logs
+      - name: Upload Windows smoke failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-diagnostics-windows-tauri
+          path: scratch/smoke-logs
+          retention-days: 7
       - name: Check Rust and generated Tauri configuration
         run: cargo check --manifest-path src-tauri/Cargo.toml

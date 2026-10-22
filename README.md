@@ -482,6 +482,15 @@ To enable automated cross-platform builds and signed releases via GitHub Actions
 - `TAURI_SIGNING_PRIVATE_KEY`: The full contents of your `~/.tauri/piggy.key`.
 - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: The password chosen when creating the key (or empty if unencrypted).
 
+Store these as repository secrets (or organization secrets available to this repository). The build jobs do not use the `release-production` environment; secrets stored only there are unavailable for signing. Preserve the private key contents exactly, without extra quotes or another base64 encoding layer, and use the matching password. Keep the existing keypair when correcting secrets so installed clients can continue verifying updates.
+
+Before CI and native builds, Release signs a disposable file with the locked Tauri CLI and verifies its signature against the public key from the release commit. A malformed key, wrong password or mismatched keypair blocks the release early. To run the same check locally with the two variables loaded securely and Minisign installed:
+
+```bash
+npm ci
+python scripts/release_tools.py signing-probe --ref HEAD
+```
+
 #### Releasing a New Version
 Push a semantic version tag to trigger the multi-platform release pipeline:
 ```bash
@@ -489,9 +498,11 @@ git tag v1.0.1
 git push origin v1.0.1
 ```
 The `.github/workflows/release.yml` GitHub Actions workflow will:
-1. Matrix-build across Windows x64, macOS Apple Silicon (arm64), macOS Intel (x64), and Linux x64.
-2. Sign all bundles and generate `latest.json` updater manifest.
-3. Automatically publish the artifacts to the GitHub Release.
+1. Validate the tag, versions and signing configuration, then run CI on the exact release commit.
+2. Build and smoke-test native sidecars across Windows x64, macOS Apple Silicon (arm64), and Linux x64, then upload signed installers to a draft release.
+3. Verify all updater signatures, generate `latest.json` and `SHA256SUMS`, then publish through the `release-production` gate.
+
+Windows CI also smoke-tests the packaged sidecar. Smoke success includes graceful shutdown and temporary profile cleanup; sanitized diagnostics are uploaded when a check fails. After a code fix, use a new commit with matching version/tag rather than moving an existing release tag.
 
 ---
 
